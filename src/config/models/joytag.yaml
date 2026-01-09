@@ -1,0 +1,32 @@
+name: "JoyTag"
+id: "joytag"
+wrapper_path: "src.wrappers.joytag.JoyTagWrapper"
+model_id: "fancyfeast/joytag"
+model_path: "fancyfeast/joytag"
+description: "Custom vision tagging model with threshold-based tag generation."
+media_type:
+  - "Image"
+caption_speed: 4
+
+# Supported features from features/ module
+features:
+  - threshold
+
+# No standard generation features
+defaults:
+  threshold: 0.4
+  token_length: 100
+
+# VRAM recommendations
+vram_table:
+  4: 32
+  6: 72
+  8: 90
+  12: 192
+  16: 300
+  24: 448
+  32: 640
+
+# Feature layout
+feature_rows:
+  - [threshold]

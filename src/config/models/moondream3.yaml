@@ -1,0 +1,65 @@
+name: "Moondream 3 (Preview)"
+id: "moondream3"
+wrapper_path: "src.wrappers.moondream3.Moondream3Wrapper"
+model_path: "moondream/moondream3-preview"
+description: |
+  Advanced VLM with chain-of-thought reasoning.
+  Modes: Caption (describe image), Query (answer Task Prompt question), Detect (find objects → bounding boxes), Point (locate objects → coordinates).
+caption_speed: 4
+media_type:
+  - "Image"
+
+# Moondream3 processes images sequentially - batch_size has no effect
+hide_batch_size: true
+
+# Model-specific features
+features:
+  - model_mode
+  - caption_length
+  - temperature
+  - task_prompt
+  - prompt_source
+  - instruction_template
+
+# Available modes for this model (populates model_mode dropdown)
+model_modes:
+  - Caption
+  - Query
+  - Query with Reasoning
+  - Detect
+  - Point
+
+caption_lengths:
+  - Short
+  - Normal
+  - Long
+
+defaults:
+  max_tokens: 512
+  model_mode: "Caption"
+  caption_length: "Normal"
+  temperature: 0.7
+  task_prompt: ""
+  prompt_source: "Instruction Template"
+
+# Task Prompt examples for each mode:
+# Caption mode: (uses instruction_template instead)
+# Query mode: "What is happening in this image?" or "How many people are there?"
+# Detect mode: "face" or "person" or "car" (object to find)
+# Point mode: "red car" or "person on the left" (object to locate)
+instruction_presets:
+  Brief: "Describe briefly."
+  Detailed: "Describe this image in detail."
+  Analysis: "Analyze the visual elements and their relationships."
+
+vram_table:
+  8: 1
+
+# Custom feature layout for this model
+# Uses presets from feature_layouts.yaml and inline custom rows
+feature_rows:
+  - [model_mode, caption_length, temperature]  # Custom row with mode controls
+  - preset: prompt_control
+  - preset: instruction_fields
+  - preset: file_metadata
+

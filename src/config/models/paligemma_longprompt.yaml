@@ -1,0 +1,53 @@
+name: "Paligemma LongPrompt"
+id: "paligemma_longprompt"
+wrapper_path: "src.wrappers.paligemma_longprompt.PaligemmaLongPromptWrapper"
+model_path: "google/paligemma-3b-ft-docci-448"
+description: "Paligemma fine-tuned for detailed long-form captions"
+model_id: "mnemic/paligemma-longprompt-v1-safetensors"
+media_type: "Image"
+caption_speed: 4
+
+# No model-specific features - uses fixed "caption en" prompt
+# Generation params (temperature, top_k, etc.) are now configurable
+# Supported features
+features:
+  - temperature
+  - top_k
+  - repetition_penalty
+  - task_prompt
+  - instruction_template
+  - prompt_source
+  - prompt_prefix
+  - prompt_suffix
+  - prompt_file_extension
+  - strip_contents_inside
+  - max_word_length
+
+defaults:
+  task_prompt: "<image>caption en"
+  max_tokens: 1024
+  temperature: 0.7
+  top_k: 50
+  repetition_penalty: 1.15
+  prompt_source: "Instruction Template"
+
+instruction_presets:
+  "English Caption": "<image>caption en"
+  "Detailed": "<image>describe in detail."
+  "Detect": "<image>detect"
+
+# VRAM recommendations
+vram_table:
+  8: 1
+  12: 96
+  16: 164
+  24: 352
+  32: 512
+
+# Feature layout
+feature_rows:
+  - preset: sampling_params
+  - [strip_contents_inside, max_word_length]  # Cleanup options
+  - preset: prompt_control
+  - preset: instruction_fields
+  - preset: file_metadata

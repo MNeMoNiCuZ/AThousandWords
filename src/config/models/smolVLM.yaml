@@ -1,0 +1,66 @@
+name: "SmolVLM"
+id: "smolVLM"
+wrapper_path: "src.wrappers.smolvlm.SmolVLMWrapper"
+model_path: "HuggingFaceTB/SmolVLM-Instruct"
+description: "Fast and efficient vision-language model (256M or 500M)."
+media_type:
+  - "Image"
+caption_speed: 4
+
+# Supported features from features/ module
+features:
+  - model_version
+  - task_prompt
+  - instruction_template
+  - prompt_source
+  - prompt_prefix
+  - prompt_suffix
+  - prompt_file_extension
+
+# Defaults extracted from source script
+defaults:
+  max_tokens: 512
+  temperature: 0.7
+  top_k: 50
+  repetition_penalty: 1.1
+  task_prompt: "Describe the image in 10 words"
+  prompt_source: "Instruction Template"
+  prompt_prefix: "<s>[INST]"
+  prompt_suffix: "\n[IMG][/INST]"
+  model_version: "500M"
+
+# Model version options
+model_versions:
+  "256M": "HuggingFaceTB/SmolVLM-256M-Instruct"
+  "500M": "HuggingFaceTB/SmolVLM-500M-Instruct"
+
+# Instruction presets from source script comments
+instruction_presets:
+  "Comma Separated Tags": "Describe the image in one sentence"
+  "Short Caption": "Describe the image in one sentence"
+  "Medium Description": "Caption with a short description"
+  "Long Description": "Caption this image"
+  "Very Long Description": "Describe everything about this image in detail without formatting"
+  Tags: "List the key elements in this image as a couple of comma-separated tags."
+
+vram_table:
+  "256M":
+    4: 2
+    8: 10
+    12: 20
+    16: 28
+    24: 46
+    32: 64
+  "500M":
+    4: 2
+    8: 10
+    12: 20
+    16: 28
+    24: 46
+    32: 64
+
+# Feature layout
+feature_rows:
+  - preset: prompt_control
+  - preset: instruction_fields
+  - preset: file_metadata

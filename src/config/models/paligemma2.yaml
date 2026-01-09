@@ -1,0 +1,74 @@
+name: "PaliGemma 2 10B"
+id: "paligemma2"
+wrapper_path: "src.wrappers.paligemma2.Paligemma2Wrapper"
+model_path: "google/paligemma2-10b-ft-docci-448"
+description: "Google's PaliGemma2 with extensive text cleanup and quality control."
+media_type:
+  - "Image"
+caption_speed: 4
+
+# Supported features from features/ module
+features:
+  - temperature
+  - top_k
+  - repetition_penalty
+  - task_prompt
+  - instruction_template
+  - prompt_source
+  - prompt_prefix
+  - prompt_suffix
+  - prompt_file_extension
+  - strip_contents_inside
+  - max_word_length
+
+
+# Defaults extracted from source script
+defaults:
+  temperature: 0.7
+  top_k: 50
+  repetition_penalty: 1.15
+  max_tokens: 512
+  task_prompt: "<image>Describe this image in detail."
+  prompt_source: "Instruction Template"
+  prune_end: true
+  remove_words: 
+    - "#"
+    - "/"
+    - "、"
+    - "@"
+    - "__"
+    - "|"
+    - "  "
+    - ";"
+    - "~"
+    - "\""
+    - "*"
+    - "^"
+    - ",,"
+    - "ON DISPLAY:"
+  strip_bracket_types:
+    - "("
+    - "["
+    - "{"
+
+# Instruction presets
+instruction_presets:
+  "Detailed Description": "<image>Describe this image in detail."
+  "Short Description": "<image>Write a short description."
+  "Name Main Color": "<image>Name ONLY the main primary color"
+  "Main Subject": "<image>Name the main subject"
+  "Caption": "<image>Write a caption for this image"
+
+# VRAM recommendations
+vram_table:
+  24: 6
+  32: 20
+
+# Feature layout
+feature_rows:
+  - preset: sampling_params
+  - [strip_contents_inside, max_word_length]  # PaliGemma-specific cleanup options
+  - preset: prompt_control
+  - preset: instruction_fields
+  - preset: file_metadata
+

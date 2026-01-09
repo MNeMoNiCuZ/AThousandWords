@@ -1,0 +1,73 @@
+name: "Pixtral 12B"
+id: "pixtral_12b"
+wrapper_path: "src.wrappers.pixtral_12b.Pixtral12BWrapper"
+model_path: "mistralai/Pixtral-12B-2409"
+description: "High-performance vision-language model with optional quantized variant."
+media_type:
+  - "Image"
+caption_speed: 4
+
+# Supported features from features/ module
+features:
+  - model_version
+  - temperature
+  - top_k
+  - repetition_penalty
+  - task_prompt
+  - instruction_template
+  - prompt_source
+  - prompt_prefix
+  - prompt_suffix
+  - prompt_file_extension
+  - system_prompt
+  - max_width
+  - max_height
+
+
+# Defaults extracted from source script
+defaults:
+  max_tokens: 512
+  temperature: 0.7
+  top_k: 50
+  repetition_penalty: 1.5
+  task_prompt: "Describe the image in 10 words"
+  max_width: 1024
+  max_height: 1024
+
+  prompt_source: "Instruction Template"
+  system_prompt: "You are a helpful assistant."
+  model_version: "Quantized (nf4)"
+  prompt_prefix: "<s>[INST]"
+  prompt_suffix: "\n[IMG][/INST]"
+
+# Model version options (full vs quantized)
+model_versions:
+  "Quantized (nf4)": "SeanScripts/pixtral-12b-nf4"
+  "Full Model": "mistral-community/pixtral-12b"
+
+# Instruction presets from source script comments
+instruction_presets:
+  "Comma Separated Tags": "Describe the image in 10 words"
+  "Short Caption": "Describe the in one sentence"
+  "Medium Description": "Caption with a short description"
+  "Long Description": "Caption this image"
+  "Very Long Description": "Describe everything about this image in detail without formatting"
+
+# VRAM recommendations (Pixtral 12B)
+# Quantized model uses significantly less VRAM
+vram_table:
+  "Quantized (nf4)":
+    16: 2
+    24: 5
+    32: 9
+  "Full Model":
+    24: 1
+    32: 2
+
+# Feature layout
+feature_rows:
+  - preset: sampling_params
+  - preset: system_and_prompt_control
+  - preset: instruction_fields
+  - preset: file_metadata
+

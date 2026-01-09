@@ -1,0 +1,67 @@
+name: "SmolVLM 2"
+id: "smolVLM2"
+wrapper_path: "src.wrappers.smolvlm2.SmolVLM2Wrapper"
+model_path: "HuggingFaceTB/SmolVLM2-2.2B-Instruct"
+description: "Efficient vision-language model supporting images and videos (256M, 500M, 2.2B)."
+media_type: 
+  - "Image"
+  - "Video"
+caption_speed: 4
+
+# Supported features from features/ module
+features:
+  - model_version
+  - task_prompt
+  - instruction_template
+  - prompt_source
+  - prompt_prefix
+  - prompt_suffix
+  - prompt_file_extension
+  - system_prompt
+
+defaults:
+  max_tokens: 512
+  model_version: "500M"
+  task_prompt: "Describe this video in detail."
+  prompt_source: "Instruction Template"
+  system_prompt: "You are a helpful assistant."
+
+# Model version options
+model_versions:
+  "256M": "HuggingFaceTB/SmolVLM2-256M-Video-Instruct"  
+  "500M": "HuggingFaceTB/SmolVLM2-500M-Video-Instruct"
+  "2.2B": "HuggingFaceTB/SmolVLM2-2.2B-Instruct"
+
+instruction_presets:
+  "Detailed Analysis": "Describe this video in detail, focusing on main events and actions."
+  "Short Summary": "Summarize the video in one sentence."
+  "Objects": "List the main objects visible in the video."
+
+vram_table:
+  "256M":
+    4: 2
+    8: 12
+    12: 24
+    16: 36
+    24: 56
+    32: 80
+  "500M":
+    4: 2
+    8: 12
+    12: 24
+    16: 36
+    24: 56
+    32: 80
+  "2.2B":
+    8: 4
+    12: 16
+    16: 20
+    24: 48
+    32: 70
+
+# Feature layout
+feature_rows:
+feature_rows:
+  - preset: system_and_prompt_control
+  - preset: instruction_fields
+  - preset: file_metadata

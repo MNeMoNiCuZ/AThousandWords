@@ -1,0 +1,59 @@
+# Global Defaults - THE SINGLE SOURCE OF TRUTH
+# All settings values are defined here. User overrides are stored in user_data/user_config.yaml.
+
+# --- Model Display Order ---
+# Controls the order models appear in dropdowns and settings.
+# Models not listed here will appear at the end in alphabetical order.
+model_order:
+  - florence2
+  - joycaption
+  - joytag
+  - miaoshouai
+  - mimovl
+  - moondream1
+  - moondream2
+  - moondream3
+  - paligemma2
+  - paligemma_longprompt
+  - pixtral_12b
+  - qwen2-vl-7b-captioner-relaxed
+  - qwen3_vl
+  - qwenvl2.7b
+  - smolVLM
+  - smolVLM2
+  - ToriiGate
+  - wd14
+
+# --- Output Settings ---
+output_dir: ""
+output_format: "txt"
+overwrite: true
+recursive: true
+unload_model: true
+
+# --- Console/Debug ---
+print_console: true
+
+
+# --- Text Processing ---
+prefix: ""
+suffix: ""
+clean_text: true
+collapse_newlines: true
+normalize_text: true
+remove_chinese: false
+strip_loop: true
+output_json: false
+limit_count: 0
+
+# --- Image Processing ---
+max_width: 1024
+max_height: 1024
+
+# --- System/Hardware ---
+gpu_vram: 8
+default_batch_size: 1
+
+# --- UI Settings ---
+gallery_columns: 6
+gallery_rows: 2

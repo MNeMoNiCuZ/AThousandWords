@@ -1,0 +1,57 @@
+name: "QwenVL 2.7B"
+id: "qwenvl2.7b"
+wrapper_path: "src.wrappers.qwenvl2_7b.QwenVL27BWrapper"
+model_path: "Qwen/Qwen2-VL-7B-Instruct"
+description: "Advanced vision-language model with strong captioning capabilities."
+media_type:
+  - "Image"
+caption_speed: 4
+
+# Supported features from features/ module
+features:
+  - temperature
+  - top_k
+  - repetition_penalty
+  - task_prompt
+  - instruction_template
+  - prompt_source
+  - prompt_prefix
+  - prompt_suffix
+  - prompt_file_extension
+  - system_prompt
+  - max_width
+  - max_height
+
+# Defaults extracted from source script
+defaults:
+  max_tokens: 256
+  temperature: 0.7
+  top_k: 50
+  repetition_penalty: 1.3
+  task_prompt: "Describe all details of this image"
+  max_width: 1024
+  max_height: 1024
+  prompt_source: "Instruction Template"
+  system_prompt: "You are a helpful assistant."
+
+# Instruction presets from source script examples (lines 34-56)
+instruction_presets:
+  "Quick Caption": "In one short sentence, caption the key aspects of this image"
+  "Medium Caption": "In one medium sentence, caption the key aspects of this image"
+  "Long Caption": "Describe all details of this image"
+  "Long Tags": "Describe with comma separated tags"
+  "Short Tags": "In a comma separated list, caption with the top 3 tags"
+  "Primary Color": "In one word: What is the primary color of this image."
+  "Text Extraction": "Write any large text in the image or answer with an empty string"
+
+# VRAM recommendations (Qwen2-VL-7B is memory intensive)
+vram_table:
+  24: 2
+  32: 6
+
+# Feature layout
+feature_rows:
+  - preset: sampling_params
+  - preset: system_and_prompt_control
+  - preset: instruction_fields
+  - preset: file_metadata

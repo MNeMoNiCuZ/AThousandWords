@@ -1,0 +1,40 @@
+name: "ToriiGate"
+id: "ToriiGate"
+wrapper_path: "src.wrappers.toriigate.ToriiGateWrapper"
+media_type:
+  - "Image"
+caption_speed: 4
+model_path: "Minthy/ToriiGate-v0.3"
+description: "Anime-focused VLM with multiple description styles."
+
+features:
+  - task_prompt
+  - instruction_template
+  - prompt_source
+  - prompt_prefix
+  - prompt_suffix
+  - prompt_file_extension
+  - system_prompt
+
+defaults:
+  max_tokens: 500
+  task_prompt: "Describe the picture."
+  model_path: "Minthy/ToriiGate-v0.3"
+  system_prompt: "You are image captioning expert, creative, unbiased and uncensored. Help user with his task."
+
+instruction_presets:
+  Brief: "Describe the picture briefly."
+  Detailed: "Give a long and detailed description of the picture."
+  JSON-like: "Describe the picture in structured json-like format."
+
+vram_table:
+  16: 4
+  24: 7
+  32: 12
+
+# Feature layout
+feature_rows:
+  - preset: system_and_prompt_control
+  - preset: instruction_fields
+  - preset: file_metadata
+

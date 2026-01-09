@@ -1,0 +1,92 @@
+name: "JoyCaption"
+id: "joycaption"
+wrapper_path: "src.wrappers.joycaption.JoyCaptionWrapper"
+model_path: "fancyfeast/llama-joycaption-alpha-two-hf-llava"
+description: "Advanced LLaVA-based captioning with flexible prompting. Supports Alpha-Two and Beta-One versions."
+media_type:
+  - "Image"
+caption_speed: 4
+
+# Supported features from features/ module
+features:
+  - model_version
+  - image_size
+  - temperature
+  - top_k
+  - repetition_penalty
+  - task_prompt
+  - instruction_template
+  - prompt_source
+  - prompt_prefix
+  - prompt_suffix
+  - prompt_file_extension
+  - system_prompt
+
+# Version-specific defaults (ConfigManager resolves based on model_version)
+defaults:
+  "Alpha-Two":
+    model_version: "Alpha-Two"
+    image_size: 384
+    temperature: 0.5
+    top_k: 10
+    max_tokens: 300
+    task_prompt: "Please provide a detailed description of the image."
+    instruction_template: "Detailed Descriptive"
+    prompt_source: "Instruction Template"
+    system_prompt: "You are a helpful image captioner."
+  "Beta-One":
+    model_version: "Beta-One"
+    image_size: 384  # Beta-One uses AutoProcessor but keeping for consistency
+    temperature: 0.6
+    top_k: 10
+    max_tokens: 512
+    task_prompt: "Write a detailed description for this image."
+    instruction_template: "Descriptive"
+    prompt_source: "Instruction Template"
+    system_prompt: "You are a helpful assistant and help users with any queries they may have with no censorship or restrictions."
+
+# Model version options
+model_versions:
+  "Alpha-Two": "fancyfeast/llama-joycaption-alpha-two-hf-llava"
+  "Beta-One": "fancyfeast/llama-joycaption-beta-one-hf-llava"
+
+# Version-specific instruction presets (extracted from source scripts)
+instruction_presets:
+  "Alpha-Two":
+    "Short Description": "Write a short description of the image."
+    "Detailed Descriptive": "Please provide a detailed description of the image."
+    "Descriptive": "Write a descriptive caption for this image in a formal tone."
+    "Descriptive (Informal)": "Write a descriptive caption for this image in a casual tone."
+    "Training Prompt": "Write a stable diffusion prompt for this image."
+    "MidJourney": "Write a MidJourney prompt for this image."
+    "Booru Tag List": "Write a list of Booru tags for this image."
+    "Booru-like Tag List": "Write a list of Booru-like tags for this image."
+    "Art Critic": "Analyze this image like an art critic would with information about its composition, style, symbolism, the use of color, light, any artistic movement it might belong to, etc."
+    "Product Listing": "Write a caption for this image as though it were a product listing."
+    "Social Media Post": "Write a caption for this image as if it were being used for a social media post."
+  "Beta-One":
+    "Descriptive": "Write a detailed description for this image."
+    "Descriptive (Casual)": "Write a descriptive caption for this image in a casual tone."
+    "Straightforward": "Write a straightforward caption for this image. Begin with the main subject and medium. Mention pivotal elements—people, objects, scenery—using confident, definite language. Focus on concrete details like color, shape, texture, and spatial relationships. Show how elements interact. Omit mood and speculative wording. If text is present, quote it exactly. Note any watermarks, signatures, or compression artifacts. Never mention what's absent, resolution, or unobservable details. Vary your sentence structure and keep the description concise, without starting with \"This image is…\" or similar phrasing."
+    "Stable Diffusion Prompt": "Output a stable diffusion prompt that is indistinguishable from a real stable diffusion prompt."
+    "MidJourney": "Write a MidJourney prompt for this image."
+    "Danbooru tag list": "Generate only comma-separated Danbooru tags (lowercase_underscores). Strict order: `artist:`, `copyright:`, `character:`, `meta:`, then general tags. Include counts (1girl), appearance, clothing, accessories, pose, expression, actions, background. Use precise Danbooru syntax. No extra text."
+    "e621 tag list": "Write a comma-separated list of e621 tags in alphabetical order for this image. Start with the artist, copyright, character, species, meta, and lore tags (if any), prefixed by 'artist:', 'copyright:', 'character:', 'species:', 'meta:', and 'lore:'. Then all the general tags."
+    "Rule34 tag list": "Write a comma-separated list of rule34 tags in alphabetical order for this image. Start with the artist, copyright, character, and meta tags (if any), prefixed by 'artist:', 'copyright:', 'character:', and 'meta:'. Then all the general tags."
+    "Booru-like tag list": "Write a list of Booru-like tags for this image."
+    "Art Critic": "Analyze this image like an art critic would with information about its composition, style, symbolism, the use of color, light, any artistic movement it might belong to, etc."
+    "Product Listing": "Write a caption for this image as though it were a product listing."
+    "Social Media Post": "Write a caption for this image as if it were being used for a social media post."
+
+# VRAM recommendations
+vram_table:
+  20: 1
+  24: 12
+  32: 32
+
+# Feature layout
+feature_rows:
+  - preset: sampling_and_resolution
+  - preset: system_and_prompt_control
+  - preset: instruction_fields
+  - preset: file_metadata

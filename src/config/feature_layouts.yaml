@@ -1,0 +1,62 @@
+# Feature Layout Presets
+# Reusable row definitions that models can reference in their feature_rows config
+
+presets:
+  # Sampling parameters: temperature, top_k, repetition_penalty
+  sampling_params:
+    - temperature
+    - top_k
+    - repetition_penalty
+
+  # Sampling parameters and image resolution
+  sampling_and_resolution:
+    - temperature
+    - top_k
+    - repetition_penalty
+    - image_size
+  
+  # Advanced options: thinking tags, JSON output, flash attention
+  advanced_options:
+    - strip_thinking_tags
+    - output_json
+    - flash_attention
+  
+  # Video processing settings
+  video_settings:
+    - fps
+  
+  # Visual token limits
+  visual_tokens:
+    - min_visual_tokens
+    - max_visual_tokens
+  
+  # Video token limits
+  video_tokens:
+    - min_video_tokens
+    - max_video_tokens
+  
+  # WD14-specific settings (threshold, resolution)
+  wd14_settings:
+    - threshold
+    - image_size
+  
+  # Prompt source selection and system prompt
+  system_and_prompt_control:
+    - system_prompt
+    - prompt_source
+    - instruction_template
+
+  # Prompt source selection
+  prompt_control:
+    - prompt_source
+    - instruction_template
+  
+  # Instruction template and task prompt fields
+  instruction_fields:
+    - task_prompt
+  
+  # File/metadata prompt fields
+  file_metadata:
+    - prompt_prefix
+    - prompt_file_extension
+    - prompt_suffix

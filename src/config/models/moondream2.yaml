@@ -1,0 +1,46 @@
+name: "Moondream 2"
+id: "moondream2"
+wrapper_path: "src.wrappers.moondream2.Moondream2Wrapper"
+model_path: "vikhyat/moondream2"
+description: "Lightweight, fast vision-language model with captioning and visual query support."
+media_type:
+  - "Image"
+caption_speed: 4
+
+# Moondream2 processes images sequentially - batch_size has no effect
+hide_batch_size: true
+
+# Model-specific features
+features:
+  - model_mode
+  - task_prompt
+  - prompt_source
+  - instruction_template
+
+model_modes:
+  - Caption
+  - Query
+
+defaults:
+  max_tokens: 512
+  model_mode: "Caption"
+  task_prompt: "Describe this image in detail."
+  prompt_source: "Instruction Template"
+  instruction_template: "Detailed"
+
+instruction_presets:
+  Brief: "Describe briefly."
+  Detailed: "Describe this image in detail."
+  Analysis: "Analyze the visual elements and their relationships."
+  Count: "How many objects are in this image?"
+
+vram_table:
+  8: 1
+
+# Feature layout
+feature_rows:
+  - [model_mode]  # Mode selection
+  - preset: prompt_control
+  - preset: instruction_fields
+  - preset: file_metadata
+

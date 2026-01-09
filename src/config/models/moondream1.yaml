@@ -1,0 +1,38 @@
+name: "Moondream 1"
+id: "moondream1"
+wrapper_path: "src.wrappers.moondream1.Moondream1Wrapper"
+model_path: "vikhyat/moondream1"
+description: "1.6B parameter vision-language model. Research use only."
+media_type:
+  - "Image"
+caption_speed: 4
+
+# Moondream1 processes images sequentially - batch_size has no effect
+hide_batch_size: true
+
+# Model-specific features
+features:
+  - task_prompt
+  - prompt_source
+  - instruction_template
+
+defaults:
+  max_tokens: 512
+  task_prompt: "Describe this image."
+  prompt_source: "Instruction Template"
+
+instruction_presets:
+  Brief: "Describe briefly."
+  Detailed: "Describe this image in detail."
+  Analysis: "Analyze the visual elements and composition."
+  Count: "How many objects are in this image?"
+
+vram_table:
+  8: 1
+
+# Feature layout
+feature_rows:
+  - preset: prompt_control
+  - preset: instruction_fields
+  - preset: file_metadata
+

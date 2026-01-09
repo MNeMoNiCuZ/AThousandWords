@@ -1,0 +1,76 @@
+name: "Qwen3-VL"
+id: "qwen3_vl"
+wrapper_path: "src.wrappers.qwen3_vl.Qwen3VLWrapper"
+model_path: "Qwen/Qwen3-VL-8B-Instruct"
+description: "Advanced Vision-Language Model supporting images and video."
+media_type:
+  - "Image"
+  - "Video"
+caption_speed: 4
+
+features:
+  - model_version
+  - temperature
+  - top_k
+  - repetition_penalty
+  - flash_attention
+  - fps
+  - min_visual_tokens
+  - max_visual_tokens
+  - min_video_tokens
+  - max_video_tokens
+  - task_prompt
+  - instruction_template
+  - prompt_source
+  - output_json
+  - output_json
+  - strip_thinking_tags
+  - system_prompt
+
+defaults:
+  max_tokens: 1024
+  temperature: 0.7
+  top_k: 50
+  repetition_penalty: 1.1
+  model_version: "8B"
+  fps: 4
+  min_visual_tokens: 256
+  max_visual_tokens: 1280
+  min_video_tokens: 256
+  max_video_tokens: 16384
+  prompt_source: "Instruction Template"
+  task_prompt: "Describe this content."
+  system_prompt: "You are a helpful assistant."
+
+model_versions:
+  "2B": "Qwen/Qwen3-VL-2B-Instruct"
+  "8B": "Qwen/Qwen3-VL-8B-Instruct"
+  "235B (MoE)": "Qwen/Qwen3-VL-235B-A22B-Instruct"
+
+instruction_presets:
+  Brief: "Describe briefly."
+  Detailed: "Describe in detail."
+  Analysis: "Analyze the visual elements and their relationships."
+  OCR: "Read all text in the image."
+
+vram_table:
+  "2B":
+    8: 4
+    12: 11
+    16: 19
+    24: 34
+    32: 48
+  "8B":
+    24: 2
+    32: 15
+  "235B (MoE)":
+    640: 1
+
+# Feature layout
+feature_rows:
+  - preset: sampling_params
+  - [flash_attention, fps, strip_thinking_tags, output_json]  # Advanced + video settings
+  - [min_visual_tokens, max_visual_tokens, min_video_tokens, max_video_tokens]  # Token limits
+  - preset: system_and_prompt_control
+  - preset: instruction_fields
+  - preset: file_metadata
