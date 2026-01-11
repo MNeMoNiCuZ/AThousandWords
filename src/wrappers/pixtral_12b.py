@@ -102,7 +102,7 @@ class Pixtral12BWrapper(BaseCaptionModel):
         self._load_model(version)
         return super().run(dataset, args)
     
-    def _run_inference(self, images: List[Image.Image], prompt: str, args: Dict[str, Any]) -> List[str]:
+    def _run_inference(self, images: List[Image.Image], prompt: List[str], args: Dict[str, Any]) -> List[str]:
         """
         Run Pixtral inference on a batch of images.
         
@@ -111,7 +111,7 @@ class Pixtral12BWrapper(BaseCaptionModel):
         
         Args:
             images: List of PIL Images
-            prompt: Text prompt for captioning (with prefix/suffix already applied)
+            prompt: List of text prompts (one per image)
             args: Dictionary of generation parameters
             
         Returns:
@@ -123,56 +123,65 @@ class Pixtral12BWrapper(BaseCaptionModel):
         top_k = args.get('top_k', 50)
         repetition_penalty = args.get('repetition_penalty', 1.5)
         
-        # CRITICAL: Pixtral processor requires [IMG] token in prompt to insert image features
-        # If missing, processor won't know where to place image and generate() will fail
-        if '[IMG]' not in prompt:
-            # Add [IMG] in standard Pixtral format
-            if prompt.startswith("<s>[INST]"):
-                # Has structure, add [IMG] before closing
-                prompt = prompt.replace("[/INST]", "\n[IMG][/INST]")
-            elif "[INST]" in prompt and "[/INST]" in prompt:
-                # Has INST tags, add [IMG] before closing
-                prompt = prompt.replace("[/INST]", "\n[IMG][/INST]")
-            else:
-                # Plain text prompt - wrap in full format
-                prompt = f"<s>[INST]{prompt}\n[IMG][/INST]"
+        # PROCESS PROMPTS PER IMAGE
+        # Pixtral requires specific formatting and echoes input.
+        # We must prepare each prompt individually to handle unique prompts correctly.
         
-        # Extract the user prompt text from the prompt for stripping later
-        # The prompt comes formatted as: <s>[INST]{USER_PROMPT}\n[IMG][/INST]
-        # We need to extract USER_PROMPT to strip it from output
-        user_prompt_text = prompt
-        if prompt.startswith("<s>[INST]"):
-            user_prompt_text = prompt.replace("<s>[INST]", "").replace("\n[IMG][/INST]", "").strip()
-        elif "[INST]" in prompt:
-            user_prompt_text = prompt.split("[INST]")[1].split("[/INST]")[0].replace("\n[IMG]", "").strip()
+        final_prompts = []
+        echo_prefixes = [] # To strip later
         
-        self.user_prompt_text = user_prompt_text
-        
-        # Handle system prompt manually for Pixtral (no standard system role in simple templates)
-        # Note: Mistral/Pixtral usually puts system prompt inside [INST] or before it.
-        # We will prepend it to the text prompts.
         system_prompt = args.get('system_prompt')
-        final_prompt = prompt
         
-        if system_prompt:
-             # If using [INST] format, insert system prompt inside? 
-             # Common practice: [INST] System Prompt\n\nUser Prompt [/INST]
-             if "[INST]" in final_prompt:
-                 # Check if it starts with <s>[INST]
-                 if final_prompt.startswith("<s>[INST]"):
-                     final_prompt = final_prompt.replace("<s>[INST]", f"<s>[INST]{system_prompt}\n\n", 1)
-                 elif final_prompt.startswith("[INST]"):
-                     final_prompt = final_prompt.replace("[INST]", f"[INST]{system_prompt}\n\n", 1)
-             else:
-                 # Plain text, just prepend
-                 final_prompt = f"{system_prompt}\n\n{final_prompt}"
-        
-        # Helper list of prompts (one per image)
-        prompts = [final_prompt] * len(images)
+        for p in prompt:
+            # 1. Ensure [IMG] token is present
+            current_prompt = p
+            if '[IMG]' not in current_prompt:
+                # Add [IMG] in standard Pixtral format
+                if current_prompt.startswith("<s>[INST]"):
+                    # Has structure, add [IMG] before closing
+                    current_prompt = current_prompt.replace("[/INST]", "\n[IMG][/INST]")
+                elif "[INST]" in current_prompt and "[/INST]" in current_prompt:
+                    # Has INST tags, add [IMG] before closing
+                    current_prompt = current_prompt.replace("[/INST]", "\n[IMG][/INST]")
+                else:
+                    # Plain text prompt - wrap in full format
+                    current_prompt = f"<s>[INST]{current_prompt}\n[IMG][/INST]"
+            
+            # 2. Extract user text for later stripping
+            # The prompt comes formatted as: <s>[INST]{USER_PROMPT}\n[IMG][/INST]
+            user_prompt_text = current_prompt
+            if current_prompt.startswith("<s>[INST]"):
+                user_prompt_text = current_prompt.replace("<s>[INST]", "").replace("\n[IMG][/INST]", "").strip()
+            elif "[INST]" in current_prompt:
+                try:
+                    user_prompt_text = current_prompt.split("[INST]")[1].split("[/INST]")[0].replace("\n[IMG]", "").strip()
+                except IndexError:
+                    pass # Fallback to full text if parse fails
+            
+            # 3. Handle System Prompt
+            if system_prompt:
+                 # If using [INST] format, insert system prompt inside
+                 if "[INST]" in current_prompt:
+                     # Check if it starts with <s>[INST]
+                     if current_prompt.startswith("<s>[INST]"):
+                         current_prompt = current_prompt.replace("<s>[INST]", f"<s>[INST]{system_prompt}\n\n", 1)
+                     elif current_prompt.startswith("[INST]"):
+                         current_prompt = current_prompt.replace("[INST]", f"[INST]{system_prompt}\n\n", 1)
+                 else:
+                     # Plain text, just prepend
+                     current_prompt = f"{system_prompt}\n\n{current_prompt}"
+            
+            # 4. Calculate Echo Prefix
+            clean_echo_prompt = user_prompt_text
+            if system_prompt:
+                clean_echo_prompt = f"{system_prompt}\n\n{user_prompt_text}"
+            
+            final_prompts.append(current_prompt)
+            echo_prefixes.append((clean_echo_prompt, user_prompt_text))
         
         try:
             # Prepare inputs - allow processor to handle batching
-            inputs = self.processor(images=images, text=prompts, padding=True, return_tensors="pt")
+            inputs = self.processor(images=images, text=final_prompts, padding=True, return_tensors="pt")
             
             # Move to device and convert to model's dtype (float16)
             inputs = {k: v.to(self.device) for k, v in inputs.items()}
@@ -196,11 +205,17 @@ class Pixtral12BWrapper(BaseCaptionModel):
                 generated_ids, skip_special_tokens=True, clean_up_tokenization_spaces=False
             )
             
-            # Strip the user prompt from the output
+            # Strip the prompt from the output
             captions = []
-            for output_text in output_texts:
-                if self.user_prompt_text and output_text.startswith(self.user_prompt_text):
-                    output_text = output_text[len(self.user_prompt_text):].strip()
+            for output_text, (clean_echo, user_text) in zip(output_texts, echo_prefixes):
+                # 1. Try to strip the full clean echo prompt
+                if output_text.startswith(clean_echo):
+                    output_text = output_text[len(clean_echo):].strip()
+                
+                # 2. Fallback: Try to strip just the user prompt
+                elif user_text and output_text.startswith(user_text):
+                    output_text = output_text[len(user_text):].strip()
+                
                 captions.append(output_text)
 
             return captions

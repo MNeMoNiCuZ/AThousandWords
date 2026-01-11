@@ -104,7 +104,7 @@ class JoyTagWrapper(BaseCaptionModel):
         return image_tensor
     
     
-    def _run_inference(self, images: List[Image.Image], prompt: str, args: Dict[str, Any]) -> List[str]:
+    def _run_inference(self, images: List[Image.Image], prompt: List[str], args: Dict[str, Any]) -> List[str]:
         """Run JoyTag tagging on images. Prompt is ignored."""
         results = []
         batch_size = int(args.get('batch_size', 1))

@@ -101,13 +101,13 @@ class Paligemma2Wrapper(BaseCaptionModel):
         
         return text
     
-    def _run_inference(self, images: List[Image.Image], prompt: str, args: Dict[str, Any]) -> List[str]:
+    def _run_inference(self, images: List[Image.Image], prompt: List[str], args: Dict[str, Any]) -> List[str]:
         """
         Run PaliGemma2 inference on a batch of images.
         
         Args:
             images: List of PIL Images
-            prompt: Text prompt for captioning
+            prompt: List of text prompts (one per image)
             args: Dictionary of generation parameters
             
         Returns:
@@ -120,9 +120,13 @@ class Paligemma2Wrapper(BaseCaptionModel):
         
         # Prepare batch inputs
         batch_inputs = []
-        for image in images:
+        for image, p in zip(images, prompt):
+            # Ensure prompt starts with <image>
+            if not p.strip().startswith("<image>"):
+                p = f"<image>{p}"
+                
             inputs = self.processor(
-                text=prompt,
+                text=p,
                 images=image,
                 return_tensors="pt"
             ).to(torch.bfloat16).to(self.device)

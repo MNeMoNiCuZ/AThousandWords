@@ -67,7 +67,7 @@ class Moondream1Wrapper(BaseCaptionModel):
         self._print_item("Status", f"Model loaded on {self.device}")
 
     
-    def _run_inference(self, images: List[Image.Image], prompt: str, args: Dict[str, Any]) -> List[str]:
+    def _run_inference(self, images: List[Image.Image], prompt: List[str], args: Dict[str, Any]) -> List[str]:
         """
         Run Moondream inference on images.
         
@@ -76,7 +76,7 @@ class Moondream1Wrapper(BaseCaptionModel):
         
         Args:
             images: List of PIL Images
-            prompt: The question to ask about the image
+            prompt: List of questions to ask about the images
             args: Dictionary containing:
                 - max_tokens: Maximum tokens for generation
         
@@ -85,20 +85,20 @@ class Moondream1Wrapper(BaseCaptionModel):
         """
         max_tokens = args.get('max_tokens', 512)
         
-        # Default prompt if none provided
-        if not prompt or not prompt.strip():
-            prompt = "Describe this image."
-        
         results = []
         
-        for image in images:
+        for image, p in zip(images, prompt):
+            # Default prompt if none provided
+            if not p or not p.strip():
+                p = "Describe this image."
+            
             # Encode image
             enc_image = self.model.encode_image(image)
             
             # Answer question
             answer = self.model.answer_question(
                 enc_image, 
-                prompt, 
+                p, 
                 self.tokenizer
             )
             

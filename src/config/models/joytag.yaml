@@ -1,18 +1,23 @@
+# Metadata
 name: "JoyTag"
 id: "joytag"
 wrapper_path: "src.wrappers.joytag.JoyTagWrapper"
+tags: true
+natural_language: false
 model_id: "fancyfeast/joytag"
 model_path: "fancyfeast/joytag"
-description: "Custom vision tagging model with threshold-based tag generation."
+description: "Fast tagging model with threshold-based tag generation. Supports Flash Attention for speed improvements. Supports NSFW."
 media_type:
   - "Image"
-caption_speed: 4
+caption_speed: 9.1
+licence: "Apache 2.0"
+licence-url: "https://choosealicense.com/licenses/apache-2.0/"
 
-# Supported features from features/ module
+# Supported features
 features:
   - threshold
 
-# No standard generation features
+# Defaults
 defaults:
   threshold: 0.4
   token_length: 100

@@ -10,7 +10,7 @@ class MinVisualTokensFeature(BaseFeature):
             max_value=1280,
             gui_type="slider",
             gui_label="Min Visual Tokens",
-            gui_info="Minimum number of visual tokens for image processing.",
+            gui_info="Minimum visual tokens for image processing.",
             description="Minimum number of tokens for image encoder."
         )
 
@@ -24,7 +24,7 @@ class MaxVisualTokensFeature(BaseFeature):
             max_value=4096,
             gui_type="slider",
             gui_label="Max Visual Tokens",
-            gui_info="Maximum number of visual tokens for image processing.",
+            gui_info="Maximum visual tokens for image processing.",
             description="Maximum number of tokens for image encoder."
         )
 
@@ -38,7 +38,7 @@ class MinVideoTokensFeature(BaseFeature):
             max_value=1280,
             gui_type="slider",
             gui_label="Min Video Tokens",
-            gui_info="Minimum number of visual tokens for video processing.",
+            gui_info="Minimum visual tokens for video processing.",
             description="Minimum number of tokens for video encoder."
         )
 
@@ -52,6 +52,6 @@ class MaxVideoTokensFeature(BaseFeature):
             max_value=32768,
             gui_type="slider",
             gui_label="Max Video Tokens",
-            gui_info="Maximum number of visual tokens for video processing.",
+            gui_info="Maximum visual tokens for video processing.",
             description="Maximum number of tokens for video encoder."
         )

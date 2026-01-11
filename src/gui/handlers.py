@@ -17,18 +17,114 @@ UNIVERSAL_FEATURES = {'batch_size', 'max_tokens'}
 
 
 def get_system_ram_gb():
-    """Get total system RAM in GB."""
+    """Get total system RAM in GB with smart rounding to common sizes."""
     try:
         import psutil
-        return int(psutil.virtual_memory().total / (1024 ** 3))
+        raw_gb = psutil.virtual_memory().total / (1024 ** 3)
+        
+        # Smart rounding: Snap to multiples of 8 if within 5% tolerance
+        # Common RAM sizes: 8, 16, 24, 32, 48, 64, 96, 128, 192, 256, etc.
+        rounded = round(raw_gb)
+        
+        # Find nearest multiple of 8
+        nearest_mult_8 = round(rounded / 8) * 8
+        
+        # If within 5% of a multiple of 8, snap to it
+        tolerance = 0.05
+        if abs(raw_gb - nearest_mult_8) / raw_gb < tolerance:
+            return nearest_mult_8
+        else:
+            return rounded
     except ImportError:
         return 16  # Fallback if psutil not available
 
 
+
+def get_model_description_html(app, model_id):
+    """
+    Generates the HTML for the model description and metadata.
+    Refactored out of the handler to allow dynamic rendering in main.py.
+    """
+    if not model_id:
+        return ""
+        
+    model_info = app.config_mgr.get_model_config(model_id)
+    if not model_info:
+        return ""
+
+    description = model_info.get("description", "")
+    model_path = model_info.get("model_path", "")
+    
+    # Metadata Line (Path + License)
+    meta_parts = []
+    
+    # 1. Path
+    if model_path:
+        hf_url = f"https://huggingface.co/{model_path}"
+        meta_parts.append(f"<a href='{hf_url}' target='_blank' style='text-decoration: none;'><code style='font-size: 0.85em; background: none; color: inherit; cursor: pointer;'>{model_path}</code></a>")
+    
+    # 2. Speed
+    speed_val = model_info.get('caption_speed')
+    if speed_val:
+        # Add separator if needed
+        if meta_parts:
+            meta_parts.append("<span style='opacity: 0.5; margin: 0 8px;'>|</span>")
+        
+        meta_parts.append(f"<span style='font-size: 0.85em; opacity: 0.8;'>Speed: {speed_val} it/s</span>")
+    
+    # 3. License
+    licence = model_info.get('licence', '')
+    licence_url = model_info.get('licence-url', '')
+    
+    if licence:
+        # Check for Non-Commercial/Restrictive to apply red styling
+        container_style = 'font-size: 0.85em; opacity: 0.8;'
+        
+        # Triggers for warning color (Red)
+        warning_triggers = ["non-commercial", "unknown", "business source license", "bsl"]
+        is_warning = any(trigger in licence.lower() for trigger in warning_triggers)
+        
+        if is_warning:
+            # Warning: Red & Bold (Value Only)
+            warn_style = 'color: #ff5555; font-weight: bold;'
+            container_style = 'font-size: 0.85em; opacity: 1.0;' # Full opacity for visibility
+            
+            if licence_url:
+                lic_str = f"<a href='{licence_url}' target='_blank' style='text-decoration: underline; {warn_style}'>{licence}</a>"
+            else:
+                lic_str = f"<span style='{warn_style}'>{licence}</span>"
+        else:
+            # Standard: Inherit Color
+            if licence_url:
+                lic_str = f"<a href='{licence_url}' target='_blank' style='text-decoration: underline; color: inherit;'>{licence}</a>"
+            else:
+                lic_str = licence
+        
+        # Add separator if path exists
+        if meta_parts:
+            meta_parts.append("<span style='opacity: 0.5; margin: 0 8px;'>|</span>")
+            
+        meta_parts.append(f"<span style='{container_style}'>License: {lic_str}</span>")
+        
+    meta_html = "".join(meta_parts)
+    if meta_html:
+        meta_html = f"<div style='margin-bottom: 6px;'>{meta_html}</div>"
+        
+    # Construct HTML
+    html_val = (
+        f"<div style='width: 100%; white-space: normal; padding: 5px;'>"
+        f"<h2 style='margin: 0 0 5px 0; padding: 0; font-size: 1.4em;'>{model_id}</h2>"
+        f"{meta_html}"
+        f"<span style='font-size: 0.9em; font-weight: normal; display: block; opacity: 0.9;'>{description}</span>"
+        f"</div>"
+    )
+    return html_val
+
+
 def create_update_model_settings_handler(app, static_components, model_description_component=None):
     """
-    Updates STATIC model settings (Version, Batch Size, Max Tokens) + Description.
-    Dynamic settings are now handled by @gr.render in main.py.
+    Updates STATIC model settings (Version, Batch Size, Max Tokens).
+    Dynamic settings AND Description are now handled by @gr.render in main.py.
     """
     def update_model_settings_ui(model_id):
         # Force reload user config
@@ -36,7 +132,7 @@ def create_update_model_settings_handler(app, static_components, model_descripti
         
         # Default hidden updates
         updates = [gr.update(visible=False) for _ in static_components.values()]
-        desc_update = gr.update(value="")
+        desc_update = gr.update(value="", visible=False)
         
         if not model_id:
             return [desc_update] + updates
@@ -51,28 +147,7 @@ def create_update_model_settings_handler(app, static_components, model_descripti
         merged_values = {**defaults, **saved_settings}
         
         # Update Description
-        description = model_info.get("description", "")
-        model_path = model_info.get("model_path", "")
-        
-        # Clean description
-        description = description.replace('<br>', ' ').replace('<br/>', ' ').replace('\n', ' ')
-        
-        # Path display (Linked)
-        if model_path:
-            hf_url = f"https://huggingface.co/{model_path}"
-            path_html = f"<div style='margin-bottom: 6px;'><a href='{hf_url}' target='_blank' style='text-decoration: none;'><code style='font-size: 0.85em; background: none; color: inherit; cursor: pointer;'>{model_path}</code></a></div>"
-        else:
-            path_html = ""
-            
-        # Construct HTML
-        html_val = (
-            f"<div style='width: 100%; white-space: normal; padding: 5px;'>"
-            f"<h2 style='margin: 0 0 5px 0; padding: 0; font-size: 1.4em;'>{model_id}</h2>"
-            f"{path_html}"
-            f"<span style='font-size: 0.9em; font-weight: normal; display: block; opacity: 0.9;'>{description}</span>"
-            f"</div>"
-        )
-        
+        html_val = get_model_description_html(app, model_id)
         desc_update = gr.update(value=html_val, visible=True)
         
         # Update Static Components
@@ -210,6 +285,23 @@ def create_inference_wrapper(app, settings_state):
         # Add universal settings
         settings = app.config_mgr.get_global_settings()
         args["gpu_vram"] = settings['gpu_vram']
+
+        # VALIDATION: Check for "From File" / "From Metadata" compatibility
+        # These modes require stable local paths (not temp files from drag-and-drop)
+        prompt_source = dynamic_settings.get("prompt_source", "Prompt Presets")
+        if prompt_source in ["From File", "From Metadata"]:
+             # Check if we are potentially using drag-and-drop results or non-local inputs
+             # If folder_input is empty and we have images, it's likely Drag & Drop or legacy single image
+             if not folder_input and (image_input or dragging_files):
+                 # We can't easily rely on per-file validation here without more complex logic,
+                 # but generally D&D uploads end up in temp dirs which might not have the companion files.
+                 # However, app.load_files moves them to 'user_data/uploads'.
+                 # If the user dragged a PAIR (img + txt), it might be there.
+                 # But "From Metadata" definitely needs the original file.
+                 
+                 # Strict Safety: Abort to prevent confusion
+                 gr.Warning(f"⚠️ '{prompt_source}' mode requires selecting a Local Folder input. Drag & Drop is not supported for this mode.")
+                 return []
         
         # Call App Inference
         # We assume app.run_inference handles 'model_settings_override' or similar,
@@ -231,7 +323,7 @@ def create_gallery_cols_saver(app):
     def save_gallery_cols(cols):
         app.config_mgr.user_config['gallery_columns'] = int(cols)
         app.config_mgr._save_yaml(app.config_mgr.user_config_path, app.config_mgr.user_config)
-        logger.info(f"Saved gallery columns: {cols}")
+
     
     return save_gallery_cols
 
@@ -253,7 +345,8 @@ def create_version_change_handler(app):
         
         # Use system RAM for ONNX models, VRAM for GPU models
         if model_info.get('uses_system_ram'):
-            memory_gb = get_system_ram_gb()
+            # Use saved system_ram from config, fallback to auto-detection
+            memory_gb = app.config_mgr.get_global_settings().get('system_ram', get_system_ram_gb())
         else:
             memory_gb = app.config_mgr.get_global_settings().get('gpu_vram', 24)
         

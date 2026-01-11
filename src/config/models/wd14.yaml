@@ -1,22 +1,26 @@
+# Metadata
 name: "WD14 Tagger"
 id: "wd14"
 wrapper_path: "src.wrappers.wd14.WD14Wrapper"
+tags: true
+natural_language: false
 model_path: "SmilingWolf/wd-v1-4-convnextv2-tagger-v2"
-description: "Waifu Diffusion, an anime-focused image tagging model. Outputs comma-separated tags using ONNX runtime.<br>Uses system RAM (not GPU VRAM). Batch recommendations based on RAM. Scales proportionally for higher RAM values. It may vary depending on browser RAM use."
+description: "Waifu Diffusion, an anime-focused image tagging model. Outputs comma-separated tags using ONNX runtime.<br>Automatically resizes to 448x448px. Uses system RAM (not GPU VRAM). Scales proportionally for higher RAM values. Supports NSFW."
 media_type:
   - "Image"
-caption_speed: 4
+caption_speed: 16
+licence: "Apache 2.0"
+licence-url: "https://choosealicense.com/licenses/apache-2.0/"
 
 # ONNX runtime uses system RAM instead of GPU VRAM
 uses_system_ram: true
 
-# Model version options
+# Supported features
 features:
   - model_version
   - threshold
-  - image_size
 
-# Model versions (different architectures)
+# Model versions
 model_versions:
   "ViT v3": "SmilingWolf/wd-vit-tagger-v3"
   "SwinV2 v3": "SmilingWolf/wd-swinv2-tagger-v3"
@@ -24,9 +28,9 @@ model_versions:
   "ViT Large v3": "SmilingWolf/wd-vit-large-tagger-v3"
   "EVA02 Large v3": "SmilingWolf/wd-eva02-large-tagger-v3"
 
+# Defaults
 defaults:
   model_version: "ViT v3"
-  image_size: 448
   threshold: 0.35
 
 # ONNX uses system RAM, not VRAM. Attention has O(batch²) memory scaling.
@@ -40,4 +44,4 @@ vram_table:
 
 # Feature layout
 feature_rows:
-  - preset: wd14_settings
+  - [threshold]

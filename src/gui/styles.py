@@ -70,9 +70,10 @@ input[type=number] { -moz-appearance: textfield !important; appearance: textfiel
 .vram-rec-item {
     cursor: pointer !important;
     transition: all 0.2s ease;
-    padding: 2px 4px;
-    border-radius: 4px;
+    padding: 0px 3px;
+    border-radius: 3px;
     display: inline-block; /* Ensure padding works */
+    line-height: 1.2; /* Tighter line height */
 }
 .vram-rec-item:hover {
     background-color: rgba(255, 255, 255, 0.1);
@@ -132,6 +133,7 @@ input[type=number] { -moz-appearance: textfield !important; appearance: textfiel
 .gradio-accordion > div[class*="content"] {
     display: block !important;
 }
+
 
 
 /* --- MODERN ROUNDED CORNERS --- */
@@ -346,6 +348,12 @@ input[type="number"] {
     /* Removed display: flex !important to allow hidden state to work */
 }
 
+/* When hidden, force height to 0 */
+.pagination-row[style*="display: none"] {
+    height: 0 !important;
+    visibility: hidden !important;
+}
+
 /* Force all direct children */
 .pagination-row > div,
 .pagination-row > button {
@@ -472,5 +480,61 @@ input[type="number"] {
     font-style: italic !important;
     color: #9ca3af !important;
     line-height: 1.3 !important;
+}
+
+/* --- Presets Table Styling (Matches Model Info) --- */
+.preset-header {
+    border-bottom: 2px solid #555;
+    margin-bottom: 0 !important;
+    font-weight: bold;
+    font-size: 1.1em;
+    padding-bottom: 10px;
+}
+
+.preset-row {
+    border-bottom: 1px solid #374151; /* #444 equivalent-ish */
+    align-items: center !important;
+    padding: 0 !important;
+    min-height: 48px; /* Slightly taller for padding */
+    align-content: center;
+    transition: background 0.1s;
+}
+
+.preset-row:hover {
+    background: rgba(255,255,255,0.03);
+}
+
+.preset-cell {
+    padding: 10px; /* Exact match to model_info padding */
+    font-size: 1.0em;
+    display: flex;
+    align-items: center;
+    height: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Delete Icon Button - Minimal */
+.table-icon-btn {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    font-size: 1.4em !important; /* Larger icon */
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 40px !important; /* Fixed small width */
+    height: 40px !important;
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+    cursor: pointer !important;
+    opacity: 0.7;
+    color: #ef4444 !important;
+}
+.table-icon-btn:hover {
+    background: rgba(239, 68, 68, 0.1) !important; 
+    opacity: 1.0;
+    border-radius: 4px;
 }
 """

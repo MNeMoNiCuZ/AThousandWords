@@ -69,13 +69,13 @@ class QwenVL27BWrapper(BaseCaptionModel):
         
         print(f"QwenVL loaded on {self.device}")
     
-    def _run_inference(self, images: List[Union[Image.Image, Path]], prompt: str, args: Dict[str, Any]) -> List[str]:
+    def _run_inference(self, images: List[Union[Image.Image, Path]], prompt: List[str], args: Dict[str, Any]) -> List[str]:
         """
         Run Qwen2-VL inference on a batch of images.
         
         Args:
             images: List of PIL Images or Path objects (for videos)
-            prompt: Text prompt for captioning
+            prompt: List of text prompts (one per image)
             args: Dictionary of generation parameters
             
         Returns:
@@ -87,18 +87,84 @@ class QwenVL27BWrapper(BaseCaptionModel):
         top_k = args.get('top_k', 50)
         repetition_penalty = args.get('repetition_penalty', 1.3)
         
-        # Build messages for each image using Qwen chat format
+        # Resolution control - Hard coded intentionally
+        min_pixels = 256 * 28 * 28
+        
+        # Calculate max_pixels based on image_size or max_width/max_height
+        # Qwen2-VL uses native resolution up to max_pixels token budget
+        
+        # 1. Try image_size (Standard GUI slider)
+        image_size = args.get('image_size')
+        
+        # 2. Try max_width/max_height (Advanced/Core overrides)
+        max_width = args.get('max_width')
+        max_height = args.get('max_height')
+        
+        # Default Qwen2-VL max pixels (from docs/examples)
+        default_max_pixels = 1280 * 28 * 28
+        
+        if image_size:
+            # Treat image_size as the long edge or square target
+            # For Qwen max_pixels, we square it to get total pixel budget
+            # e.g. 1024 -> 1M pixels
+            try:
+                size_val = int(image_size)
+                max_pixels = size_val * size_val
+            except (ValueError, TypeError):
+                max_pixels = default_max_pixels
+                
+        elif max_width or max_height:
+            # If user specified resizing constraints, use them to guide max_pixels
+            w = int(max_width) if max_width else 4096 
+            h = int(max_height) if max_height else 4096
+            max_pixels = w * h
+        else:
+            max_pixels = default_max_pixels
+
         messages_batch = []
-        for image in images:
+        for image, p in zip(images, prompt):
+            # Prepare content item based on type
+            content_item = {}
+            
+            # Handle Path objects (Videos or Image paths)
+            if isinstance(image, (str, Path)):
+                # CRITICAL Fix for Windows: qwen_vl_utils requires string paths, not Path objects
+                path_str = str(image.absolute()) if isinstance(image, Path) else str(image)
+                
+                # Detect video by extension
+                lower_path = path_str.lower()
+                is_video = lower_path.endswith(('.mp4', '.avi', '.mov', '.mkv', '.webm'))
+                
+                if is_video:
+                    content_item = {
+                        "type": "video",
+                        "video": path_str,
+                        "max_pixels": max_pixels,
+                        # "fps": 1.0, # Optional: could expose this
+                    }
+                else:
+                    content_item = {
+                        "type": "image",
+                        "image": path_str,
+                        "min_pixels": min_pixels,
+                        "max_pixels": max_pixels,
+                    }
+            
+            # Handle PIL Images (In-memory)
+            else:
+                 content_item = {
+                    "type": "image",
+                    "image": image,
+                    "min_pixels": min_pixels,
+                    "max_pixels": max_pixels,
+                }
+            
             messages = [
                 {
                     "role": "user",
                     "content": [
-                        {
-                            "type": "image",
-                            "image": image,
-                        },
-                        {"type": "text", "text": prompt},
+                        content_item,
+                        {"type": "text", "text": p},
                     ],
                 }
             ]

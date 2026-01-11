@@ -1,29 +1,37 @@
+# Metadata
 name: "Florence 2 Large"
 id: "florence2"
 wrapper_path: "src.wrappers.florence2.Florence2Wrapper"
+tags: false
+natural_language: true
 model_path: "microsoft/Florence-2-large"
-description: "Efficient VLM with multiple detail modes via task prompts."
+description: "Fast and efficient. Supports multiple detail levels with Prompt Presets."
 media_type:
   - "Image"
-caption_speed: 4
+caption_speed: 3.7
+licence: "MIT"
+licence-url: "https://choosealicense.com/licenses/mit/"
 
-# Supported features from features/ module
+# Disable custom prompts
+supports_custom_prompts: false
+
+# Supported features
 features:
   - task_prompt
-  - instruction_template
+  - prompt_presets
   - prompt_source
 
-# Defaults extracted from source script
+# Defaults
 defaults:
   max_tokens: 1024
-  instruction_template: "Detailed Caption"
-  prompt_source: "Instruction Template"
+  prompt_presets: "Medium Caption"
+  prompt_source: "Prompt Presets"
 
-# Instruction presets - Florence2 task prompts
-instruction_presets:
-  "Caption": "<CAPTION>"
-  "Detailed Caption": "<DETAILED_CAPTION>"
-  "More Detailed Caption": "<MORE_DETAILED_CAPTION>"
+# Prompt presets - Florence2 only supports these
+prompt_presets:
+  "Short Caption": "<CAPTION>"
+  "Medium Caption": "<DETAILED_CAPTION>"
+  "Long Caption": "<MORE_DETAILED_CAPTION>"
 
 # VRAM recommendations
 vram_table:
@@ -35,9 +43,8 @@ vram_table:
   24: 60
   32: 96
 
-# Feature layout - defines which rows appear in GUI
+# Feature layout
 feature_rows:
-  - preset: prompt_control
-  - preset: instruction_fields
+  - preset: prompt_preset_and_prompt
   - preset: file_metadata
 

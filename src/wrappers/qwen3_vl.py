@@ -70,7 +70,7 @@ class Qwen3VLWrapper(BaseCaptionModel):
         
         print(f"Qwen3-VL loaded on {self.device}")
         
-    def _run_inference(self, media_items: List[Union[Image.Image, str, Path]], prompt: str, args: Dict[str, Any]) -> List[str]:
+    def _run_inference(self, media_items: List[Union[Image.Image, str, Path]], prompt: List[str], args: Dict[str, Any]) -> List[str]:
         """
         Run inference on images or videos.
         """
@@ -104,7 +104,7 @@ class Qwen3VLWrapper(BaseCaptionModel):
 
         # Build messages
         messages = []
-        for item in media_items:
+        for item, p in zip(media_items, prompt):
             content = []
             
             # Check if video (Path or string ending in video ext)
@@ -119,7 +119,7 @@ class Qwen3VLWrapper(BaseCaptionModel):
                 # Assume Image object or image path
                 content.append({"type": "image", "image": item})
                 
-            content.append({"type": "text", "text": prompt})
+            content.append({"type": "text", "text": p})
             messages.append([{"role": "user", "content": content}])
 
         # Prepare inputs
@@ -143,9 +143,17 @@ class Qwen3VLWrapper(BaseCaptionModel):
         ]
         
         # Processing inputs
-        # Note: 'fps' is passed to the processor if handling videos
-        image_inputs = [m[0]["content"][0]["image"] for m in messages if m[0]["content"][0]["type"] == "image"]
-        video_inputs = [m[0]["content"][0]["video"] for m in messages if m[0]["content"][0]["type"] == "video"]
+        # Robustly extract images and videos from ALL messages in the conversation
+        image_inputs = []
+        video_inputs = []
+        
+        for conversation in messages:
+            for message in conversation:
+                for content_part in message.get("content", []):
+                    if content_part.get("type") == "image":
+                        image_inputs.append(content_part["image"])
+                    elif content_part.get("type") == "video":
+                        video_inputs.append(content_part["video"])
         
         # If empty lists, pass None
         if not image_inputs: image_inputs = None

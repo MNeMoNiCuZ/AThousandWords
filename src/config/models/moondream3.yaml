@@ -1,65 +1,68 @@
+# Metadata
 name: "Moondream 3 (Preview)"
 id: "moondream3"
 wrapper_path: "src.wrappers.moondream3.Moondream3Wrapper"
+tags: false
+natural_language: true
 model_path: "moondream/moondream3-preview"
-description: |
-  Advanced VLM with chain-of-thought reasoning.
-  Modes: Caption (describe image), Query (answer Task Prompt question), Detect (find objects → bounding boxes), Point (locate objects → coordinates).
-caption_speed: 4
+description: "Advanced model with chain-of-thought reasoning. <b>Batch size has no effect</b><br>Query Mode: Prompt-guided mode, can also answer input questions.<br>Caption Mode: Preset captioning with length options, not promptable.<br>Detect Mode: Returns bounding boxes of found objects.<br>Point Mode: Returns a list of coordinates with found object."
+caption_speed: 0.16
 media_type:
   - "Image"
+licence: "Business Source License (BSL 1.1)"
+licence-url: "https://huggingface.co/moondream/moondream3-preview/blob/main/LICENSE.md"
 
-# Moondream3 processes images sequentially - batch_size has no effect
-hide_batch_size: true
+# Model processes images sequentially - batch_size has no effect
+# hide_batch_size: true
+# Showing batch size anyway as it's still an indicator for minimum batch size.
 
-# Model-specific features
+# Supported features
 features:
   - model_mode
   - caption_length
-  - temperature
   - task_prompt
   - prompt_source
-  - instruction_template
+  - prompt_presets
 
-# Available modes for this model (populates model_mode dropdown)
+# Model Modes
 model_modes:
-  - Caption
   - Query
   - Query with Reasoning
+  - Caption
   - Detect
   - Point
 
+# Caption Lengths
 caption_lengths:
   - Short
   - Normal
   - Long
 
+# Defaults
 defaults:
   max_tokens: 512
-  model_mode: "Caption"
+  model_mode: "Query"
   caption_length: "Normal"
   temperature: 0.7
-  task_prompt: ""
-  prompt_source: "Instruction Template"
+  prompt_source: "Prompt Presets"
+  prompt_presets: "Detailed Caption"
 
-# Task Prompt examples for each mode:
-# Caption mode: (uses instruction_template instead)
-# Query mode: "What is happening in this image?" or "How many people are there?"
-# Detect mode: "face" or "person" or "car" (object to find)
-# Point mode: "red car" or "person on the left" (object to locate)
-instruction_presets:
-  Brief: "Describe briefly."
-  Detailed: "Describe this image in detail."
-  Analysis: "Analyze the visual elements and their relationships."
+# Prompt Presets
+prompt_presets:
+  Short Caption: "Describe briefly."
+  Detailed Caption: "Describe this image in detail."
+  Count Fingers: "How many fingers are clearly visible?"
+  Person Feeling Reasoning: "Considering what is happening in this image, what is the person likely thinking and feeling?"
+  "[Detect] Face Bounding Box": "face"
+  "[Point] Face Location": "face"
 
+# VRAM recommendations
 vram_table:
-  8: 1
+  24: 1
 
-# Custom feature layout for this model
-# Uses presets from feature_layouts.yaml and inline custom rows
+# Feature layout
 feature_rows:
-  - [model_mode, caption_length, temperature]  # Custom row with mode controls
-  - preset: prompt_control
-  - preset: instruction_fields
+  - preset: sampling_params
+  - [model_mode, caption_length, prompt_source, prompt_presets]
+  - preset: prompt_input
   - preset: file_metadata
-

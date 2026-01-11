@@ -1,21 +1,24 @@
+# Metadata
 name: "Paligemma LongPrompt"
 id: "paligemma_longprompt"
 wrapper_path: "src.wrappers.paligemma_longprompt.PaligemmaLongPromptWrapper"
-model_path: "google/paligemma-3b-ft-docci-448"
-description: "Paligemma fine-tuned for detailed long-form captions"
+tags: false
+natural_language: true
+model_path: "mnemic/paligemma-longprompt-v1-safetensors"
+description: "Finetune of Paligemma that outputs tags first and then natural language as part of the same output. Has a tendency to hallucinate in longer outputs."
 model_id: "mnemic/paligemma-longprompt-v1-safetensors"
 media_type: "Image"
-caption_speed: 4
+caption_speed: 2
+licence: "Gemma"
+licence-url: "https://ai.google.dev/gemma/terms"
 
-# No model-specific features - uses fixed "caption en" prompt
-# Generation params (temperature, top_k, etc.) are now configurable
 # Supported features
 features:
   - temperature
   - top_k
   - repetition_penalty
   - task_prompt
-  - instruction_template
+  - prompt_presets
   - prompt_source
   - prompt_prefix
   - prompt_suffix
@@ -23,18 +26,18 @@ features:
   - strip_contents_inside
   - max_word_length
 
+# Defaults
 defaults:
-  task_prompt: "<image>caption en"
-  max_tokens: 1024
+  max_tokens: 512
   temperature: 0.7
   top_k: 50
   repetition_penalty: 1.15
-  prompt_source: "Instruction Template"
+  prompt_source: "Prompt Presets"
 
-instruction_presets:
-  "English Caption": "<image>caption en"
-  "Detailed": "<image>describe in detail."
-  "Detect": "<image>detect"
+prompt_presets:
+  "English Caption": "caption en"
+  "Detailed": "describe in detail."
+  "Detect": "detect"
 
 # VRAM recommendations
 vram_table:
@@ -47,7 +50,7 @@ vram_table:
 # Feature layout
 feature_rows:
   - preset: sampling_params
-  - [strip_contents_inside, max_word_length]  # Cleanup options
+  - [strip_contents_inside, max_word_length]
   - preset: prompt_control
-  - preset: instruction_fields
+  - preset: prompt_input
   - preset: file_metadata

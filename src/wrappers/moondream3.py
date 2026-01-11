@@ -77,13 +77,13 @@ class Moondream3Wrapper(BaseCaptionModel):
             except Exception as e:
                 self._print_item("Warning", f"Compilation failed: {e}. Running without compilation.")
     
-    def _run_inference(self, images: List[Image.Image], prompt: str, args: Dict[str, Any]) -> List[str]:
+    def _run_inference(self, images: List[Image.Image], prompt: List[str], args: Dict[str, Any]) -> List[str]:
         """
         Run Moondream3 inference on images.
         
         Args:
             images: List of PIL Images
-            prompt: The Task Prompt (used as question in Query mode, or target in Detect/Point modes)
+            prompt: List of Task Prompts (one per image)
             args: Dictionary containing:
                 - model_mode: "Caption", "Query", "Query with Reasoning", "Detect", or "Point"
                 - caption_length: "Short", "Normal", or "Long" (for Caption mode)
@@ -107,7 +107,7 @@ class Moondream3Wrapper(BaseCaptionModel):
         # Validate caption_length (model expects lowercase)
         if caption_length not in ['short', 'normal', 'long']:
             caption_length = 'normal'
-        
+            
         settings = {
             "temperature": temperature,
             "max_tokens": max_tokens
@@ -115,17 +115,17 @@ class Moondream3Wrapper(BaseCaptionModel):
         
         results = []
         
-        for image in images:
+        for image, p in zip(images, prompt):
             result_text = ""
             
             if model_mode == "Query":
                 # Query mode: Answer a question about the image
-                if not prompt:
+                if not p:
                     result_text = "[Error: Query mode requires a Task Prompt with your question]"
                 else:
                     result = self.model.query(
                         image=image, 
-                        question=prompt,
+                        question=p,
                         reasoning=reasoning,
                         settings=settings
                     )
@@ -138,11 +138,11 @@ class Moondream3Wrapper(BaseCaptionModel):
             
             elif model_mode == "Detect":
                 # Detect mode: Find objects and output bounding boxes
-                if not prompt:
+                if not p:
                     result_text = "[Error: Detect mode requires a Task Prompt with target object (e.g. 'face', 'car')]"
                 else:
                     try:
-                        detect_result = self.model.detect(image, prompt)
+                        detect_result = self.model.detect(image, p)
                         objects = detect_result.get("objects", [])
                         result_text = json.dumps({
                             "target": prompt,
@@ -154,14 +154,14 @@ class Moondream3Wrapper(BaseCaptionModel):
             
             elif model_mode == "Point":
                 # Point mode: Locate objects and output coordinates
-                if not prompt:
+                if not p:
                     result_text = "[Error: Point mode requires a Task Prompt with target object (e.g. 'red car', 'person')]"
                 else:
                     try:
-                        point_result = self.model.point(image, prompt)
+                        point_result = self.model.point(image, p)
                         points = point_result.get("points", [])
                         result_text = json.dumps({
-                            "target": prompt,
+                            "target": p,
                             "points": points,
                             "count": len(points)
                         }, indent=2)

@@ -7,7 +7,7 @@ Model: Minthy/ToriiGate-v0.3
 Key features:
 - 4-bit NF4 quantization for VRAM efficiency
 - Fixed system prompt for anime-focused captioning
-- Supports Brief, Detailed, and JSON-like description styles via instruction templates
+- Supports Brief, Detailed, and JSON-like description styles via instruction presets
 - Strips "Assistant:" prefix from outputs
 """
 
@@ -62,7 +62,7 @@ class ToriiGateWrapper(BaseCaptionModel):
         
         print(f"Model loaded on {self.device}")
     
-    def _run_inference(self, images: List[Image.Image], prompt: str, args: Dict[str, Any]) -> List[str]:
+    def _run_inference(self, images: List[Image.Image], prompt: List[str], args: Dict[str, Any]) -> List[str]:
         """
         Run ToriiGate inference on a batch of images.
         
@@ -73,7 +73,7 @@ class ToriiGateWrapper(BaseCaptionModel):
         
         # Build messages with fixed system prompt and user prompt per image
         messages_list = []
-        for _ in images:
+        for _, p in zip(images, prompt):
             messages = [
                 {
                     "role": "system",
@@ -85,7 +85,7 @@ class ToriiGateWrapper(BaseCaptionModel):
                     "role": "user",
                     "content": [
                         {"type": "image"},
-                        {"type": "text", "text": prompt}
+                        {"type": "text", "text": p}
                     ]
                 }
             ]

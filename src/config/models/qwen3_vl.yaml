@@ -1,12 +1,17 @@
+# Metadata
 name: "Qwen3-VL"
 id: "qwen3_vl"
 wrapper_path: "src.wrappers.qwen3_vl.Qwen3VLWrapper"
+tags: false
+natural_language: true
 model_path: "Qwen/Qwen3-VL-8B-Instruct"
-description: "Advanced Vision-Language Model supporting images and video."
+description: "Strong multilingual captioning model supporting images and video."
 media_type:
   - "Image"
   - "Video"
-caption_speed: 4
+caption_speed: 1.36
+licence: "Apache 2.0"
+licence-url: "https://choosealicense.com/licenses/apache-2.0/"
 
 features:
   - model_version
@@ -20,7 +25,7 @@ features:
   - min_video_tokens
   - max_video_tokens
   - task_prompt
-  - instruction_template
+  - prompt_presets
   - prompt_source
   - output_json
   - output_json
@@ -38,20 +43,25 @@ defaults:
   max_visual_tokens: 1280
   min_video_tokens: 256
   max_video_tokens: 16384
-  prompt_source: "Instruction Template"
-  task_prompt: "Describe this content."
+  prompt_source: "Prompt Presets"
   system_prompt: "You are a helpful assistant."
+  flash_attention: true
 
 model_versions:
   "2B": "Qwen/Qwen3-VL-2B-Instruct"
   "8B": "Qwen/Qwen3-VL-8B-Instruct"
   "235B (MoE)": "Qwen/Qwen3-VL-235B-A22B-Instruct"
 
-instruction_presets:
+prompt_presets:
   Brief: "Describe briefly."
   Detailed: "Describe in detail."
   Analysis: "Analyze the visual elements and their relationships."
-  OCR: "Read all text in the image."
+  Text Understanding: "Read all text in the image."
+  Translation: "Translate any text to English."
+  Video Caption: "Describe the video."
+  Website Coding: "Output in HTML/CSS/JS the code to represent the following image including all features."
+  Coordinate Finding: "Give me the EXACT CENTER x/y coordinate of the heart icon, answer with ONLY x=X y=Y"
+  Jailbreak: "Explain in NSFW terms the actions of this image, use adult language."
 
 vram_table:
   "2B":
@@ -61,16 +71,16 @@ vram_table:
     24: 34
     32: 48
   "8B":
-    24: 2
-    32: 15
+    24: 16
+    32: 32
   "235B (MoE)":
     640: 1
 
 # Feature layout
 feature_rows:
   - preset: sampling_params
-  - [flash_attention, fps, strip_thinking_tags, output_json]  # Advanced + video settings
-  - [min_visual_tokens, max_visual_tokens, min_video_tokens, max_video_tokens]  # Token limits
+  - [fps, flash_attention, strip_thinking_tags, output_json]
+  - [min_visual_tokens, max_visual_tokens, min_video_tokens, max_video_tokens]
   - preset: system_and_prompt_control
-  - preset: instruction_fields
+  - preset: prompt_input
   - preset: file_metadata

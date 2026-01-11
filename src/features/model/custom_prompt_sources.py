@@ -2,7 +2,7 @@
 Custom Prompt Sources Feature
 
 Unified prompt source system supporting:
-- Instruction Template mode (uses instruction_template or task_prompt)
+- Prompt Presets mode (uses prompt_presets or task_prompt)
 - From File mode (reads from per-image files with custom extension)
 - From Metadata mode (extracts from PNG metadata)
 """
@@ -23,12 +23,12 @@ class PromptSourceFeature(BaseFeature):
     def config(self) -> FeatureConfig:
         return FeatureConfig(
             name="prompt_source",
-            default_value="Instruction Template",
+            default_value="Prompt Presets",
             description="Choose where to get prompts from.",
             gui_type="dropdown",
             gui_label="Prompt Source",
             gui_info="Select prompt source for the captioning.",
-            gui_choices=["Instruction Template", "From File", "From Metadata"],
+            gui_choices=["Prompt Presets", "From File", "From Metadata"],
             include_in_cli=False  # GUI setting for prompt building, actual prompts are included
         )
     
@@ -120,6 +120,7 @@ class PromptSuffixFeature(BaseFeature):
 def get_custom_prompt_for_image(image_path: str, extension: str = ".prompt") -> str:
     """
     Get custom prompt from file for an image.
+    Checks both replaced suffix (image.txt) and appended suffix (image.jpg.txt).
     
     Args:
         image_path: Path to the image file
@@ -128,12 +129,24 @@ def get_custom_prompt_for_image(image_path: str, extension: str = ".prompt") -> 
     Returns:
         Custom prompt text or empty string if not found
     """
-    prompt_path = Path(image_path).with_suffix(extension)
-    if prompt_path.exists():
+    img_path_obj = Path(image_path)
+    
+    # 1. Try replaced suffix (e.g., image.jpg -> image.caption)
+    prompt_path_replaced = img_path_obj.with_suffix(extension)
+    if prompt_path_replaced.exists():
         try:
-            return prompt_path.read_text(encoding='utf-8').strip()
+            return prompt_path_replaced.read_text(encoding='utf-8').strip()
         except Exception:
-            return ""
+            pass
+            
+    # 2. Try appended suffix (e.g., image.jpg -> image.jpg.caption)
+    prompt_path_appended = img_path_obj.with_name(img_path_obj.name + extension)
+    if prompt_path_appended.exists():
+        try:
+            return prompt_path_appended.read_text(encoding='utf-8').strip()
+        except Exception:
+            pass
+            
     return ""
 
 
@@ -183,31 +196,35 @@ def get_prompt_for_image(
     prefix: str = "",
     suffix: str = "",
     extension: str = ".prompt",
-    instruction_template: str = "",
+    prompt_preset_name: str = "",
     task_prompt: str = "",
-    instruction_presets: dict = None
+    presets_map: dict = None,
+    strict: bool = False
 ) -> str:
     """
     Unified function to get prompt based on selected mode.
     
     Args:
         image_path: Path to the image file
-        mode: "Instruction Template", "From File", or "From Metadata"
+        mode: "Prompt Presets", "From File", or "From Metadata"
         prefix: Text to prepend (for File/Metadata modes)
         suffix: Text to append (for File/Metadata modes)
         extension: File extension for prompt files (for From File mode)
-        instruction_template: Selected instruction template name
+        prompt_preset_name: Selected Prompt Presets name
         task_prompt: Fallback task prompt
-        instruction_presets: Dict of instruction template presets
+        presets_map: Dict of Prompt Presets presets
+        strict: If True, returns None if file/metadata is missing instead of fallback.
         
     Returns:
-        Final prompt string
+        Final prompt string or None if strict mode and source missing.
     """
-    instruction_presets = instruction_presets or {}
+    presets_map = presets_map or {}
     
     if mode == "From File":
         source_content = get_custom_prompt_for_image(image_path, extension)
         if not source_content:
+            if strict:
+                return None
             # Fallback to task_prompt if file not found
             return task_prompt or "Describe this image."
         return f"{prefix}{source_content}{suffix}"
@@ -215,12 +232,14 @@ def get_prompt_for_image(
     elif mode == "From Metadata":
         source_content = _extract_metadata_from_file(image_path)
         if not source_content:
+            if strict:
+                return None
             # Fallback to task_prompt if metadata not found
             return task_prompt or "Describe this image."
         return f"{prefix}{source_content}{suffix}"
     
-    else:  # "Instruction Template" (default)
-        # Use instruction preset if available, otherwise use task_prompt
-        if instruction_template and instruction_template in instruction_presets:
-            return instruction_presets[instruction_template]
+    else:  # "Prompt Presets" (default)
+        # Use prompt preset if available, otherwise use task_prompt
+        if prompt_preset_name and prompt_preset_name in presets_map:
+            return presets_map[prompt_preset_name]
         return task_prompt or "Describe this image."

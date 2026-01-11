@@ -1,19 +1,25 @@
+# Metadata
 name: "PaliGemma 2 10B"
 id: "paligemma2"
 wrapper_path: "src.wrappers.paligemma2.Paligemma2Wrapper"
+tags: false
+natural_language: true
 model_path: "google/paligemma2-10b-ft-docci-448"
-description: "Google's PaliGemma2 with extensive text cleanup and quality control."
+description: "Google's PaliGemma2 trained on the <a href='https://google.github.io/docci/'>Docci</a> dataset. Resizes images to 448*448px"
 media_type:
   - "Image"
-caption_speed: 4
+caption_speed: 0.75
+licence: "Gemma"
+licence-url: "https://ai.google.dev/gemma/terms"
 
-# Supported features from features/ module
+
+# Supported features
 features:
   - temperature
   - top_k
   - repetition_penalty
   - task_prompt
-  - instruction_template
+  - prompt_presets
   - prompt_source
   - prompt_prefix
   - prompt_suffix
@@ -22,14 +28,13 @@ features:
   - max_word_length
 
 
-# Defaults extracted from source script
+# Defaults
 defaults:
   temperature: 0.7
   top_k: 50
   repetition_penalty: 1.15
   max_tokens: 512
-  task_prompt: "<image>Describe this image in detail."
-  prompt_source: "Instruction Template"
+  prompt_source: "Prompt Presets"
   prune_end: true
   remove_words: 
     - "#"
@@ -51,13 +56,14 @@ defaults:
     - "["
     - "{"
 
-# Instruction presets
-instruction_presets:
-  "Detailed Description": "<image>Describe this image in detail."
-  "Short Description": "<image>Write a short description."
-  "Name Main Color": "<image>Name ONLY the main primary color"
-  "Main Subject": "<image>Name the main subject"
-  "Caption": "<image>Write a caption for this image"
+# Prompt presets
+prompt_presets:
+  "Detailed Description": "Describe this image in detail."
+  "Short Description": "Write a short description."
+  "Name Main Color": "Name ONLY the main primary color"
+  "Main Subject": "Name the main subject"
+  "Caption": "Write a caption for this image"
+  "Hair Color": "What's the hair color of the main subject?"
 
 # VRAM recommendations
 vram_table:
@@ -67,8 +73,8 @@ vram_table:
 # Feature layout
 feature_rows:
   - preset: sampling_params
-  - [strip_contents_inside, max_word_length]  # PaliGemma-specific cleanup options
+  - [strip_contents_inside, max_word_length]
   - preset: prompt_control
-  - preset: instruction_fields
+  - preset: prompt_input
   - preset: file_metadata
 

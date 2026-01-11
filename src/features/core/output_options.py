@@ -16,7 +16,7 @@ class OverwriteFeature(BaseFeature):
     def config(self) -> FeatureConfig:
         return FeatureConfig(
             name="overwrite",
-            default_value=False,
+            default_value=True,
             description="Replace existing caption files if they exist.",
             gui_type="checkbox",
             gui_label="Overwrite",

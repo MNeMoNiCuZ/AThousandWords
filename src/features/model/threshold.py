@@ -25,7 +25,7 @@ class ThresholdFeature(BaseFeature):
             description="Probability threshold for tag selection.",
             gui_type="slider",
             gui_label="Threshold",
-            gui_info="Confidence cutoff (1.0 = strict, 0.0 = loose)",
+            gui_info="Internal probability cutoff for candidate tokens.",
             gui_step=0.01
         )
     

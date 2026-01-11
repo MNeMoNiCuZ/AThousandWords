@@ -1,42 +1,50 @@
+# Metadata
 name: "SmolVLM 2"
 id: "smolVLM2"
 wrapper_path: "src.wrappers.smolvlm2.SmolVLM2Wrapper"
+tags: false
+natural_language: true
 model_path: "HuggingFaceTB/SmolVLM2-2.2B-Instruct"
-description: "Efficient vision-language model supporting images and videos (256M, 500M, 2.2B)."
+description: "Fast and efficient model supporting images and videos (256M, 500M, 2.2B)."
 media_type: 
   - "Image"
   - "Video"
-caption_speed: 4
+caption_speed: 2
+licence: "Apache 2.0"
+licence-url: "https://choosealicense.com/licenses/apache-2.0/"
 
-# Supported features from features/ module
+# Supported features
 features:
   - model_version
   - task_prompt
-  - instruction_template
+  - prompt_presets
   - prompt_source
   - prompt_prefix
   - prompt_suffix
   - prompt_file_extension
   - system_prompt
 
+# Defaults
 defaults:
   max_tokens: 512
   model_version: "500M"
-  task_prompt: "Describe this video in detail."
-  prompt_source: "Instruction Template"
   system_prompt: "You are a helpful assistant."
+  prompt_source: "Prompt Presets"
+  prompt_presets: "Detailed Caption"
 
-# Model version options
+# Model versions
 model_versions:
   "256M": "HuggingFaceTB/SmolVLM2-256M-Video-Instruct"  
   "500M": "HuggingFaceTB/SmolVLM2-500M-Video-Instruct"
   "2.2B": "HuggingFaceTB/SmolVLM2-2.2B-Instruct"
 
-instruction_presets:
-  "Detailed Analysis": "Describe this video in detail, focusing on main events and actions."
-  "Short Summary": "Summarize the video in one sentence."
-  "Objects": "List the main objects visible in the video."
+# Prompt presets
+prompt_presets:
+  Detailed Caption: "Describe this in detail, focusing on main events and actions."
+  Short Caption: "Summarize the in one sentence."
+  List Objects: "List the main objects visible."
 
+# VRAM recommendations
 vram_table:
   "256M":
     4: 2
@@ -61,7 +69,6 @@ vram_table:
 
 # Feature layout
 feature_rows:
-feature_rows:
   - preset: system_and_prompt_control
-  - preset: instruction_fields
+  - preset: prompt_input
   - preset: file_metadata

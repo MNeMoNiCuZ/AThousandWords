@@ -5,9 +5,12 @@ Refactored for simplified settings workflow (Phase 3).
 """
 
 import gradio as gr
+import os
+import glob
+import functools
+from pathlib import Path
 import logging
 
-from .app import CaptioningApp
 from .app import CaptioningApp
 from .styles import CSS
 from .js import JS
@@ -17,6 +20,8 @@ from .handlers import (
     create_inference_wrapper,
     create_gallery_cols_saver,
     create_version_change_handler,
+    get_system_ram_gb,
+    get_model_description_html,
 )
 from .dataset_gallery import create_dataset_gallery
 from .model_info import create_model_info_tab
@@ -146,13 +151,24 @@ def create_ui(startup_message=None):
                     # Model Description - Full width display of model info from YAML config
                     # Get initial description from current model's config
                     initial_model_config = app.config_mgr.get_model_config(app.current_model_id) if app.current_model_id else {}
-                    initial_description = initial_model_config.get("description", "")
+                    initial_description_html = get_model_description_html(app, app.current_model_id)
                     model_description = gr.Markdown(
-                        value=initial_description,
+                        value=initial_description_html,
                         elem_classes="model-description"
                     )
-                    
-                    # Model Selection Row (includes media_type_filter, model dropdown, model_version, batch_size, max_tokens)
+                    # Presets Tracker State (Global for UI)
+                    presets_tracker = gr.State(value=0)
+
+                    # Pre-define models_chk to avoid UnboundLocalError in Presets Tab
+                    # We render it later in the Settings tab
+                    models_chk = gr.CheckboxGroup(
+                        choices=app.models, 
+                        value=app.enabled_models, 
+                        label="Enabled Models", 
+                        info="Select which models appear in the model dropdown",
+                        render=False  # IMPORTANT: Do not render yet
+                    )
+
                     with gr.Row():
                         media_type_filter = gr.Dropdown(
                             choices=["Image", "Video"],
@@ -195,8 +211,8 @@ def create_ui(startup_message=None):
                     # Dynamic Rendering of Model Features
                     from .dynamic_components import create_component_from_feature_config
                     
-                    @gr.render(inputs=[model_sel, model_version_dropdown])
-                    def render_features(model_id, model_version):
+                    @gr.render(inputs=[model_sel, model_version_dropdown, presets_tracker])
+                    def render_features(model_id, model_version, tracker):
                         if not model_id:
                             return
                         
@@ -205,28 +221,68 @@ def create_ui(startup_message=None):
                         resolved_rows = app.config_mgr.resolve_feature_rows(model_id)
                         if resolved_rows is None:
                             resolved_rows = []
+                        
 
                         # 2. Get Current Config & Defaults
                         # Helper to merge defaults with user overrides
                         config = app.config_mgr.get_model_config(model_id)
                         
+                        # Build set of supported features for this model
+                        supported_features = set()
+                        for f in config.get('features', []):
+                            if isinstance(f, str):
+                                supported_features.add(f)
+                            elif isinstance(f, dict) and 'name' in f:
+                                supported_features.add(f['name'])
+                        
                         # Use shared helper to ensure consistency with state initializer
                         # Pass model_version from dropdown if available (for re-render on version change)
                         current_values = _resolve_values(model_id, model_version)
-
+                        
+                        # Initialize settings_state with current values for this model
+                        # This ensures dynamic features are available when generating commands
+                        settings_state.value = current_values.copy()
+                        
                         # 3. Render Rows
                         # Create a map to track created components for wiring events later
+                        # Component Map for debugging/access
                         component_map = {}
                         
+                        # Universal State Update Handler
+                        def update_state_handler(val, current_state, name):
+                            if current_state is None:
+                                current_state = {}
+                            
+                            
+                            current_state[name] = val
+                            
+                            return current_state
+                        
+
+
                         for row_features in resolved_rows:
                             if not row_features: continue
                             
                             # check if any features in this row are NOT model_version/batch/tokens
-                            valid_features = [f for f in row_features if f not in ['model_version', 'batch_size', 'max_tokens']]
+                            # CRITICAL: Always exclude universal/static features from dynamic rendering
+                            IGNORED_FEATURES = {'model_version', 'batch_size', 'max_tokens'}
+                            valid_features = [f for f in row_features if f.strip() not in IGNORED_FEATURES]
                             if not valid_features: continue
+
+                            # Pre-process feature definitions for this model to support lookups
+                            feature_defs = {f['name']: f for f in config.get('features', []) if isinstance(f, dict) and 'name' in f}
 
                             with gr.Row():
                                 for feature_name in valid_features:
+                                    # CRITICAL: Only render features supported by the model
+                                    # Double check against IGNORED just in case
+                                    if feature_name in IGNORED_FEATURES:
+                                        continue
+                                        
+                                    # Relax check: Allow layout to dictate features (e.g. system_prompt in presets)
+                                    # if feature_name not in supported_features:
+                                    #    continue
+
                                     feature = feature_registry.get_feature(feature_name)
                                     if not feature: continue
                                     
@@ -240,15 +296,47 @@ def create_ui(startup_message=None):
                                     # Apply overrides from YAML (e.g. tooltips)
                                     overrides = config.get('feature_overrides', {}).get(feature_name, {})
                                     feat_conf.update(overrides)
+                                    
+                                    # --- INITIAL VISIBILITY LOGIC ---
+                                    # Check generic 'visible_if' from configuration
+                                    feat_def = feature_defs.get(feature_name, {})
+                                    if 'visible_if' in feat_def:
+                                        condition = feat_def['visible_if']
+                                        # Simple parser for initial state
+                                        import re
+                                        match = re.match(r"(\w+)\s*(==|!=)\s*['\"](.+)['\"]", condition)
+                                        if match:
+                                            source, op, val = match.groups()
+                                            source_val = current_values.get(source)
+                                            # Default to visible if source value missing (safe)
+                                            if source_val is not None:
+                                                if op == '==':
+                                                    feat_conf['visible'] = (str(source_val) == val)
+                                                elif op == '!=':
+                                                    feat_conf['visible'] = (str(source_val) != val)
+
+                                    # SAFETY: Explicitly force separate labels for Prompts to avoid confusion
+                                    if feature_name == "task_prompt":
+                                        feat_conf['label'] = "Task Prompt"
+                                        # Check if model supports custom prompts
+                                        if config.get('supports_custom_prompts', True) is False:
+                                            feat_conf['interactive'] = False
+                                            # Use Code component to ensure special tokens (like <DETAILED_CAPTION>) are visible
+                                            feat_conf['type'] = 'code'
+                                            
+                                            # Optional: Add info
+                                            # feat_conf['info'] = "This model requires specific prompts. You cannot edit this field manually."
+                                    elif feature_name == "system_prompt":
+                                        feat_conf['label'] = "System Prompt"
 
                                     # Check visibility dependency for THIS component
                                     # If this component depends on prompt_source, check that value
-                                    ps_val = current_values.get("prompt_source", "Instruction Template")
+                                    ps_val = current_values.get("prompt_source", "Prompt Presets")
                                     
                                     # Visibility Logic (Mirroring the handler)
                                     is_visible = True
-                                    if feature_name in ["instruction_template", "task_prompt"]:
-                                        if ps_val != "Instruction Template": is_visible = False
+                                    if feature_name in ["prompt_presets", "task_prompt"]:
+                                        if ps_val != "Prompt Presets": is_visible = False
                                     elif feature_name == "prompt_file_extension":
                                         if ps_val != "From File": is_visible = False
                                     elif feature_name in ["prompt_prefix", "prompt_suffix"]:
@@ -260,32 +348,31 @@ def create_ui(startup_message=None):
                                     feat_conf['visible'] = is_visible
                                     
 
-
                                     # Populate Dynamic Choices
                                     # 1. Prompt Source (Always static 3 options)
                                     if feature_name == "prompt_source":
-                                        feat_conf['choices'] = ["Instruction Template", "From File", "From Metadata"]
+                                        feat_conf['choices'] = ["Prompt Presets", "From File", "From Metadata"]
                                         feat_conf['allow_custom_value'] = False # Force selection from list
                                     
-                                    # 2. Instruction Template (Version-Specific)
-                                    elif feature_name == "instruction_template":
+                                    # 2. Prompt Presets (Version-Specific)
+                                    elif feature_name == "prompt_presets":
                                         # Get current version for proper preset resolution
                                         current_version = current_values.get('model_version')
-                                        presets = app.config_mgr.get_version_instruction_presets(model_id, current_version)
+                                        presets = app.config_mgr.get_version_prompt_presets(model_id, current_version)
                                         choices = list(presets.keys()) if presets else []
-                                        # Add Custom choice
-                                        if "Custom" not in choices:
-                                            choices.insert(0, "Custom")
+                                        
                                         feat_conf['choices'] = choices
                                     
-                                    # 3. Model Version (From Model Config)
-                                    elif feature_name == "model_version":
-                                        feat_conf['choices'] = config.get('model_versions', [])
-                                    
-                                    # 4. Model Mode (From Model Config)
+                                    # Populate Dynamic Choices
                                     elif feature_name == "model_mode":
                                         feat_conf['choices'] = config.get('model_modes', [])
+                                    elif feature_name == "caption_length":
+                                        feat_conf['choices'] = config.get('caption_lengths', [])
+                                    elif feature_name == "model_version":
+                                        # Already handled but good for completeness
+                                        feat_conf['choices'] = list(config.get('model_versions', {}).keys())
 
+                                    # Create Component
                                     # Create Component
                                     comp = create_component_from_feature_config(feat_conf)
                                     
@@ -293,24 +380,106 @@ def create_ui(startup_message=None):
                                     component_map[feature_name] = comp
 
                                     # Bind Change Event to Update State
-                                    # We use a closure to capture feature_name
-                                    def update_state(val, current_state, name=feature_name):
-                                        # Handle case where state might be None
-                                        if current_state is None:
-                                            current_state = {}
-                                        current_state[name] = val
-                                        return current_state
-
-                                    comp.change(fn=update_state, inputs=[comp, settings_state], outputs=[settings_state])
+                                    # Use functools.partial to safely capture feature_name loop variable
+                                    if feature_name != "prompt_presets":
+                                        comp.change(
+                                            fn=functools.partial(update_state_handler, name=feature_name),
+                                            inputs=[comp, settings_state],
+                                            outputs=[settings_state]
+                                        )
                         
-                        # 4. Wire Up Conditional Visibility (After all components created)
-                        # Prompt Source Visibility Logic
+                        # 4. Wire Up Conditional Visibility (Generic Handler)
+                        # This handles "visible_if" properties defined in model YAML
+                        # Format: "dependency == 'value'" or "dependency != 'value'"
+                        
+                        # 1. Build Dependency Map: source -> [(target_name, condition_str), ...]
+                        visibility_deps = {}
+                        feature_config_list = config.get('features', [])
+                        
+                        # Convert config list to dict for easier lookup if needed, 
+                        # but we just need to iterate to find visible_if rules.
+                        # We also need to inspect feature_rows since some features might be in presets (like prompt_control)
+                        # Actually, 'features' list in YAML is the definition source.
+                        
+                        for feat_def in feature_config_list:
+                            if isinstance(feat_def, dict) and 'visible_if' in feat_def:
+                                target_name = feat_def['name']
+                                condition = feat_def['visible_if']
+                                
+                                # Parse generic condition: "source op 'value'"
+                                # Simple parser for == and !=
+                                import re
+                                match = re.match(r"(\w+)\s*(==|!=)\s*['\"](.+)['\"]", condition)
+                                if match:
+                                    source, op, val = match.groups()
+                                    if source in component_map and target_name in component_map:
+                                        if source not in visibility_deps:
+                                            visibility_deps[source] = []
+                                        visibility_deps[source].append({
+                                            'target': target_name,
+                                            'op': op,
+                                            'val': val
+                                        })
+
+                        # 2. Wire Events for each Source
+                        for source_name, dependants in visibility_deps.items():
+                            source_comp = component_map[source_name]
+                            targets = [component_map[d['target']] for d in dependants]
+                            
+                            # Closure to capture the specific dependants list for this source
+                            def update_visibility_generic(source_val, deps=dependants):
+                                updates = []
+                                for dep in deps:
+                                    op = dep['op']
+                                    target_val = dep['val']
+                                    
+                                    visible = False
+                                    if op == '==':
+                                        visible = (str(source_val) == target_val)
+                                    elif op == '!=':
+                                        visible = (str(source_val) != target_val)
+                                    
+                                    updates.append(gr.update(visible=visible))
+                                return updates
+
+                            source_comp.change(
+                                fn=update_visibility_generic,
+                                inputs=[source_comp],
+                                outputs=targets
+                            )
+                            
+                            # 3. Trigger Initial State
+                            # We need to apply the visibility immediately based on current value
+                            current_source_val = current_values.get(source_name)
+                            if current_source_val is not None:
+                                initial_updates = update_visibility_generic(current_source_val)
+                                # We can't return these updates during render, but we can set 
+                                # the initial 'visible' property on the components since we have references!
+                                # Wait, component_map values are already created Gradio components. 
+                                # We cannot change their properties directly after creation easily without an update?
+                                # Actually, we can just rely on the fact that we set 'visible' 
+                                # during creation in the earlier loop IF we evaluate it there.
+                                # But we didn't evaluate generic rules there yet.
+                                
+                                # BETTER APPROACH for INITIAL STATE:
+                                # Re-evaluate the 'visible' logic in the creation loop?
+                                # OR: Just accept they might flicker? No, flickering is bad.
+                                # We should update the 'visible' prop on the component object if possible.
+                                # Gradio components are objects. `comp.visible` might be settable?
+                                # No, usually read-only or requires update().
+                                
+                                # Let's try to set it via update() on load? No load event here.
+                                # The cleanest way is to evaluate this logic *inside* the creation loop 
+                                # to set the initial `visible` flag correctly.
+                                pass
+
+                        # 4. Wire Up Conditional Visibility (Legacy/Specific Handler)
                         if "prompt_source" in component_map:
                             ps_comp = component_map["prompt_source"]
                             
                             # Identify target components that exist for this model
                             target_features = [
-                                "instruction_template", "task_prompt",           # Instruction Mode
+                                "prompt_presets", "task_prompt",           # Prompt Presets Mode
                                 "prompt_prefix", "prompt_file_extension", "prompt_suffix", # File Mode
                                 "prompt_prefix", "prompt_suffix"                 # Metadata Mode
                             ] # Note: redundancy handled by unique check below
@@ -333,8 +502,8 @@ def create_ui(startup_message=None):
                                     updates = []
                                     for name in existing_targets:
                                         visible = False
-                                        if source_val == "Instruction Template":
-                                            if name in ["instruction_template", "task_prompt"]: visible = True
+                                        if source_val == "Prompt Presets":
+                                            if name in ["prompt_presets", "task_prompt"]: visible = True
                                         elif source_val == "From File":
                                             if name in ["prompt_prefix", "prompt_file_extension", "prompt_suffix"]: visible = True
                                         elif source_val == "From Metadata":
@@ -353,7 +522,7 @@ def create_ui(startup_message=None):
                                 
                                 # Trigger initial state (to set correct visibility on load)
                                 # We need to use the current value of prompt_source
-                                initial_ps_val = current_values.get("prompt_source", "Instruction Template")
+                                initial_ps_val = current_values.get("prompt_source", "Prompt Presets")
                                 # We can't easily trigger the event here without a load event, but 
                                 # render is effectively a re-creation. We can set initial visibility in config?
                                 # No, simpler to just rely on initial render state logic if possible,
@@ -384,33 +553,37 @@ def create_ui(startup_message=None):
                                     # Yes, but "prompt_source" value is needed.
                                     pass
 
-                        # Wire Up Instruction Template -> Task Prompt
-                        if "instruction_template" in component_map and "task_prompt" in component_map:
-                            it_comp = component_map["instruction_template"]
+                        # Wire Up Prompt Presets -> Task Prompt
+                        if "prompt_presets" in component_map and "task_prompt" in component_map:
+                            it_comp = component_map["prompt_presets"]
                             tp_comp = component_map["task_prompt"]
                             
                             # Get version-specific presets for this model
                             current_version = current_values.get('model_version')
-                            presets = app.config_mgr.get_version_instruction_presets(model_id, current_version)
+                            presets = app.config_mgr.get_version_prompt_presets(model_id, current_version)
                             
-                            def update_task_prompt_from_template(template_name, current_state=settings_state.value):
-                                if template_name == "Custom":
-                                    return gr.update() # Legacy/Custom mode - preserve current text
+                            def handle_preset_change(template_name, current_state):
+                                if current_state is None:
+                                    current_state = {}
                                 
+                                logger.info(f"Preset Change: {template_name}")
+                                
+                                # ALWAYS update the prompt_presets value in state first
+                                # This replaces the separate update_state handler to avoid race conditions
+                                current_state['prompt_presets'] = template_name
+
                                 if not template_name or template_name not in presets:
-                                    return gr.update() # No change
+                                    return gr.update(), current_state # No change
                                 
                                 new_prompt = presets[template_name]
-                                
-                                # Update State as well (so it's ready for inference)
                                 current_state['task_prompt'] = new_prompt
                                 
-                                return new_prompt
+                                return new_prompt, current_state
 
                             it_comp.change(
-                                fn=update_task_prompt_from_template,
-                                inputs=[it_comp],
-                                outputs=[tp_comp]
+                                fn=handle_preset_change,
+                                inputs=[it_comp, settings_state],
+                                outputs=[tp_comp, settings_state]
                             )
                         
                         # Correct Approach:
@@ -450,9 +623,28 @@ def create_ui(startup_message=None):
                         # Determine if we have nested version structure (New Style) vs Flat (Old Style)
                         has_versions = 'versions' in saved_model_root
                         
-                        # 1. Determine Current Version
+                        # Build supported features set
+                        supported_features = set()
+                        for f in config.get('features', []):
+                            if isinstance(f, str):
+                                supported_features.add(f)
+                            elif isinstance(f, dict) and 'name' in f:
+                                supported_features.add(f['name'])
+                                
+                        IGNORED_FEATURES = {'model_version', 'batch_size', 'max_tokens'}
+                        
+                        # VALIDATION: Check if model actually supports versions
+                        model_versions = config.get('model_versions', {})
+                        model_supports_versions = bool(model_versions)
+                        valid_versions = list(model_versions.keys()) if model_supports_versions else []
+                        
+                        # 1. Determine Current Version with VALIDATION
                         # Priority: Override (Dropdown) > Saved Active Version > Defaults
                         defaults_raw = config.get('defaults', {})
+                        
+                        # Fix for NameError: Load clean defaults raw for fallback logic
+                        clean_config = app.config_mgr.get_model_defaults(model_id)
+                        clean_defaults_raw = clean_config.get('defaults', {})
                         
                         if version_override:
                             current_version = version_override
@@ -460,24 +652,49 @@ def create_ui(startup_message=None):
                             # Try to get saved active version
                             # In new style, it's at root. In old style, it's also at root.
                             saved_ver = saved_model_root.get('model_version')
+                            
+                            # CRITICAL VALIDATION: Check if saved version is valid
+                            if saved_ver:
+                                if not model_supports_versions:
+                                    # Model doesn't support versions, clear the stale value
+                                    logging.warning(f"Model '{model_id}' does not support versions, but 'model_version: {saved_ver}' was saved. Clearing invalid value.")
+                                    # Remove from user_config
+                                    if 'model_settings' in app.config_mgr.user_config and model_id in app.config_mgr.user_config['model_settings']:
+                                        app.config_mgr.user_config['model_settings'][model_id].pop('model_version', None)
+                                        app.config_mgr.save_user_config()
+                                    saved_ver = None  # Ignore it
+                                elif saved_ver not in valid_versions:
+                                    # Saved version is invalid for this model
+                                    logging.warning(f"Invalid model_version '{saved_ver}' for model '{model_id}'. Valid versions: {valid_versions}. Resetting to default.")
+                                    # Remove from user_config
+                                    if 'model_settings' in app.config_mgr.user_config and model_id in app.config_mgr.user_config['model_settings']:
+                                        app.config_mgr.user_config['model_settings'][model_id].pop('model_version', None)
+                                        app.config_mgr.save_user_config()
+                                    saved_ver = None  # Ignore it
+                            
                             if saved_ver:
                                 current_version = saved_ver
                             else:
                                 # Fallback to Defaults
-                                if isinstance(defaults_raw, dict):
+                                if isinstance(clean_defaults_raw, dict):
                                     # Check if nested defaults (has string keys with dict values)
-                                    first_key = next(iter(defaults_raw), None)
-                                    if first_key and isinstance(first_key, str) and isinstance(defaults_raw.get(first_key), dict):
+                                    first_key = next(iter(clean_defaults_raw), None)
+                                    if first_key and isinstance(first_key, str) and isinstance(clean_defaults_raw.get(first_key), dict):
                                         # Nested structure - use first version as default
                                         current_version = first_key
                                     else:
                                         # Flat structure - extract version from defaults
-                                        current_version = defaults_raw.get('model_version')
+                                        current_version = clean_defaults_raw.get('model_version')
                                 else:
                                     current_version = None
 
-                        # 2. Get Defaults for this version
-                        defaults = app.config_mgr.get_version_defaults(model_id, current_version)
+                        # 2. Get Defaults for this version (from the clean config)
+                        defaults = app.config_mgr._resolve_version_specific(clean_defaults_raw, current_version)
+                        if isinstance(defaults, dict):
+                            defaults = defaults.copy() # CRITICAL: Copy to avoid mutating global config
+                        else:
+                            defaults = {}
+                            
                         
                         # 3. Get Saved Settings Diff for this version
                         saved_diff = {}
@@ -503,27 +720,56 @@ def create_ui(startup_message=None):
                         # 4. Merge
                         values = {**defaults, **saved_diff}
                         
-                        # Smart Resolution: Ensure Task Prompt matches Instruction Template
-                        # ... smart resolution logic continues below ...
-                        
-                        # Smart Resolution: Ensure Task Prompt matches Instruction Template
-                        # If the user hasn't explicitly saved a task_prompt, we should enforce 
-                        # the prompt corresponding to the selected template (or a fallback for Custom).
+                        # 4.5 Ensure ALL supported features have a value (from FeatureRegistry defaults if needed)
+                        # This feature scrubbing ensures robust state initialization
+                        for feature_name in supported_features:
+                            if feature_name not in values and feature_name not in IGNORED_FEATURES:
+                                feature = feature_registry.get_feature(feature_name)
+                                if feature:
+                                    values[feature_name] = feature.get_default()
+
+                        # Smart Resolution: Enforce Task Prompt Rules
+                        # 1. If 'prompt_presets' is supported but missing/empty (no saved value, no default), 
+                        #    default to the first available preset option.
+                        # 2. If 'task_prompt' is not strictly saved by user (even if empty in saved diff),
+                        #    overwrite it with the text from the active preset.
                         
                         task_prompt_is_saved = "task_prompt" in saved_diff
                         
-                        if "instruction_template" in values and not task_prompt_is_saved:
-                            template = values["instruction_template"]
+                        # Handle missing/empty prompt_presets by picking first available
+                        current_preset_val = values.get("prompt_presets")
+                        if not current_preset_val:
+                             has_presets_feature = "prompt_presets" in supported_features
+                             
+                             if has_presets_feature:
+                                 current_version = values.get('model_version')
+                                 presets = app.config_mgr.get_version_prompt_presets(model_id, current_version)
+                                 
+                                 if presets:
+                                     first_preset = next(iter(presets))
+                                     values["prompt_presets"] = first_preset
+                        
+                        # Derive Task Prompt from Preset if not explicitly saved (or if saved as empty/cleared)
+                        # Note: We check 'task_prompt_val' to treat an empty saved prompt as "reset to preset"
+                        task_prompt_val = values.get("task_prompt", "")
+                        
+                        # Enforce Custom Prompt Support Rules
+                        supports_custom_prompts = config.get('supports_custom_prompts', True)
+                        
+                        # If custom prompts are NOT supported, we MUST ignore any saved value that might contradict the preset
+                        # effectively forcing the prompt to match the preset.
+                        if not supports_custom_prompts:
+                            task_prompt_is_saved = False # Pretend it's not saved to force overwrite
+                        
+                        if "prompt_presets" in values and (not task_prompt_is_saved or not task_prompt_val):
+                            template = values["prompt_presets"]
                             
-                            if template == "Custom":
-                                # Fallback for Custom if no specific prompt saved
-                                values["task_prompt"] = "Caption this image."
-                            else:
-                                # Resolve from presets
-                                current_version = values.get('model_version')
-                                presets = app.config_mgr.get_version_instruction_presets(model_id, current_version)
-                                if template in presets:
-                                    values["task_prompt"] = presets[template]
+                            current_version = values.get('model_version')
+                            presets = app.config_mgr.get_version_prompt_presets(model_id, current_version)
+                            if presets and template in presets:
+                                resolved_prompt = presets[template]
+                                values["task_prompt"] = resolved_prompt
+                                # logger.debug(f"Auto-resolved Task Prompt for '{model_id}': Preset='{template}'")
                                 
                         return values
 
@@ -554,7 +800,7 @@ def create_ui(startup_message=None):
                 # Control Area: Save & Run
                 with gr.Row():
                     save_btn = gr.Button("Save Settings", variant="secondary", scale=0)
-                    gen_cmd_btn = gr.Button("Generate Command", variant="secondary", scale=0)
+                    generate_command_btn = gr.Button("Generate Command", variant="secondary", scale=0)
                     run_btn = gr.Button("Run Captioning", variant="primary", scale=1)
                     # Wrap download button in Column for proper visibility control
                     with gr.Column(visible=False, scale=0, min_width=80, elem_classes="download-btn-wrapper") as download_btn_group:
@@ -568,7 +814,7 @@ def create_ui(startup_message=None):
                         )
                 
                 # Command output textbox (hidden by default)
-                cmd_output = gr.Textbox(
+                command_output = gr.Textbox(
                     label="Generated CLI Command",
                     lines=3,
                     max_lines=5,
@@ -660,15 +906,195 @@ def create_ui(startup_message=None):
             with gr.Tab("Tools"):
                 with gr.Tabs():
                     with gr.Tab("Metadata"):
-                        gr.Markdown("Extract metadata from images.")
-                        meta_src = gr.Dropdown(["all", "png_info", "exif"], label="Source", value="all", info="Which metadata field to search for existing captions.")
-                        meta_upd = gr.Checkbox(label="Overwrite existing captions", value=True, info="If checked, existing captions in the tool will be replaced.")
-                        meta_run = gr.Button("Extract Metadata")
-                    with gr.Tab("Resize"):
-                        gr.Markdown("Resize images to a maximum dimension.")
-                        resize_px = gr.Number(label="Max Dimension (px)", value=1024, info="The maximum width or height. Aspect ratio is preserved.")
-                        resize_run = gr.Button("Resize Images")
+                        gr.Markdown("""
+                        ### 🏷️ Create Captions from Metadata
+                        Extract metadata (User Comment, PNG Info, etc.) from images to create captions.
+                        Useful for restoring prompts from generated images.
+                        """)
+                        with gr.Row():
+                            meta_src = gr.Dropdown(["all", "png_info", "exif"], label="Source", value="all", info="Which metadata field to search.")
+                            meta_out_dir = gr.Textbox(label="Output Directory", placeholder="Optional. Leave empty to save in same folder.", info="Path to save text files.")
+                            meta_ext = gr.Textbox(label="Output Extension", value="txt", placeholder="txt", info="Extension for caption files.")
+                            meta_upd = gr.Checkbox(label="Overwrite existing captions", value=True)
+                        
+                        with gr.Row():
+                            meta_clean = gr.Checkbox(label="Clean Text", value=True, info="Remove extra spaces")
+                            meta_collapse = gr.Checkbox(label="Collapse Newlines", value=True, info="Merge paragraphs")
+                            meta_norm = gr.Checkbox(label="Normalize Text", value=True, info="Fix punctuation")
+                            
+                        with gr.Row():
+                            meta_pre = gr.Textbox(label="Prefix", placeholder="Added to start...", lines=1)
+                            meta_suf = gr.Textbox(label="Suffix", placeholder="Added to end...", lines=1)
 
+                        meta_run = gr.Button("Extract Metadata", variant="primary")
+                        
+                    with gr.Tab("Resize"):
+                        gr.Markdown("""
+                        ### 📐 Resize Images
+                        Batch resize all loaded images to a maximum dimension while preserving aspect ratio.
+                        Images smaller than the target are NOT upscaled.
+                        
+                        > [!CAUTION]
+                        > **Irreversible Action**: Resizing images is a destructive operation if you overwrite the originals. 
+                        > It is highly recommended to use a separate Output Directory or Prefix/Suffix.
+                        """)
+                        with gr.Row():
+                            resize_out_dir = gr.Textbox(label="Output Directory", placeholder="Optional. Leave empty to save in same folder.", info="Path to save resized images.")
+                            resize_pre = gr.Textbox(label="Output Filename Prefix", placeholder="Added to start...", lines=1)
+                            resize_suf = gr.Textbox(label="Output Filename Suffix", placeholder="Added to end...", lines=1)
+                            resize_ext = gr.Textbox(label="Output Extension", value="", placeholder="Keep Original", info="Ext (jpg, png). Empty = Keep Original.")
+                            
+                        with gr.Row():
+                            resize_px = gr.Number(label="Max Dimension (px)", value=1024, precision=0)
+                            resize_overwrite = gr.Checkbox(label="Overwrite", value=True, info="Overwrite if file exists")
+                            
+                        resize_run = gr.Button("Resize Images", variant="primary")
+
+
+            # =========================================
+            # Tab 3.5: User Presets Library
+            # =========================================
+            with gr.Tab("Presets"):
+                gr.Markdown("### 📚 User Prompt Presets")
+                
+                with gr.Accordion("Add Preset", open=True):
+                     with gr.Row():
+                         preset_model_dd = gr.Dropdown(
+                             choices=["All Models"] + [(m, m) for m in app.get_preset_eligible_models()], 
+                             value="All Models", 
+                             label="Model"
+                         )
+                     preset_name_txt = gr.Textbox(label="Preset Name")
+                     preset_prompt_txt = gr.Textbox(label="Prompt Text", lines=3)
+                     
+                     preset_save_btn = gr.Button("💾 Add Preset", variant="primary")
+
+                with gr.Accordion("Presets", open=True):
+                    # CSS for compact rows and table-like styling
+                    gr.HTML("""
+                        <style>
+                        .preset-row {
+                            margin: 0 !important;
+                            padding: 0px !important;
+                            border-bottom: 1px solid #374151;
+                            display: flex;
+                            align-items: center;
+                        }
+                        .preset-row .form {
+                            border: none !important;
+                            background: transparent !important;
+                        }
+                        .preset-row > div {
+                             padding-top: 4px !important; 
+                             padding-bottom: 4px !important;
+                             min-height: auto !important;
+                             display: flex;
+                             align-items: center;
+                        }
+                        .preset-cell-markdown {
+                            padding-left: 12px !important;
+                            padding-right: 12px !important;
+                            /* No vertical separator as per user request */
+                            height: 100%;
+                            width: 100%;
+                            display: flex;
+                            align-items: center;
+                        }
+                        .preset-cell-markdown p {
+                            margin-bottom: 0px !important;
+                            font-size: 0.9em;
+                            line-height: normal;
+                        }
+                        
+                        /* Delete Button Styling - Red and Compact */
+                        .preset-trash-btn {
+                            min-width: 0 !important;
+                            width: 32px !important;
+                            height: 32px !important;
+                            padding: 0 !important;
+                            background-color: #450a0a !important; /* Dark Red Background */
+                            color: #fca5a5 !important; /* Light Red Icon */
+                            border: 1px solid #7f1d1d !important;
+                            border-radius: 6px !important;
+                            display: flex !important;
+                            align-items: center;
+                            justify-content: center;
+                            margin: 0 auto !important;
+                        }
+                        .preset-trash-btn:hover {
+                            background-color: #7f1d1d !important;
+                            color: #fff !important;
+                            border-color: #991b1b !important;
+                        }
+                        </style>
+                    """)
+
+                    # Render Presets List Dynamically with Native Components
+                    @gr.render(inputs=[presets_tracker])
+                    def render_preset_list(tracker):
+                        # Get data
+                        rows = app.get_user_presets_dataframe()
+                        
+                        if not rows:
+                            return gr.Markdown("*No presets found.*")
+                        
+                        # Header
+                        with gr.Row(elem_classes="preset-row", variant="compact"):
+                            # Using scale to enforce widths
+                            # Model
+                            with gr.Column(scale=2, min_width=200):
+                                gr.Markdown("**Model**", elem_classes="preset-cell-markdown")
+                            # Name
+                            with gr.Column(scale=2, min_width=200):
+                                gr.Markdown("**Name**", elem_classes="preset-cell-markdown")
+                            # Prompt Text
+                            with gr.Column(scale=6):
+                                gr.Markdown("**Prompt Text**", elem_classes="preset-cell-markdown")
+                            # Action
+                            with gr.Column(scale=0, min_width=60): # Slightly wider container for padding
+                                pass
+
+                        # Rows
+                        for row_data in rows:
+                            p_model = row_data[0]
+                            p_name = row_data[1]
+                            p_text = row_data[2]
+                            
+                            with gr.Row(elem_classes="preset-row", variant="compact"):
+                                with gr.Column(scale=2, min_width=200):
+                                    gr.Markdown(p_model, elem_classes="preset-cell-markdown")
+                                with gr.Column(scale=2, min_width=200):
+                                    gr.Markdown(f"**{p_name}**", elem_classes="preset-cell-markdown")
+                                with gr.Column(scale=6):
+                                    # Markdown automatically wraps
+                                    gr.Markdown(p_text, elem_classes="preset-cell-markdown")
+                                with gr.Column(scale=0, min_width=60):
+                                    del_btn = gr.Button("🗑️", elem_classes="preset-trash-btn", size="sm")
+                                    
+                                    # Bind Delete - Capturing loop variables properly
+                                    def do_delete(m=p_model, n=p_name):
+                                        app.delete_user_preset(m, n)
+                                        return tracker + 1
+                                    
+                                    del_btn.click(
+                                        fn=do_delete,
+                                        inputs=[],
+                                        outputs=[presets_tracker]
+                                    )
+                
+                # Update Save Button to trigger tracker
+                def handle_save_preset(model, name, text, tracker_val):
+                     app.save_user_preset(model, name, text)
+                     return tracker_val + 1
+                
+                preset_save_btn.click(
+                    handle_save_preset,
+                    inputs=[preset_model_dd, preset_name_txt, preset_prompt_txt, presets_tracker],
+                    outputs=[presets_tracker]
+                ).then(
+                    fn=lambda: app.refresh_models(),
+                    outputs=[model_sel, models_chk]
+                )
 
             # =========================================
             # Tab 4: Settings (System)
@@ -678,7 +1104,9 @@ def create_ui(startup_message=None):
                  with gr.Row():
                      vram_inp = gr.Number(label="GPU VRAM (GB)", value=cfg['gpu_vram'], precision=0, info="Your GPU's VRAM for batch size recommendations")
                      
-                     vram_inp = gr.Number(label="GPU VRAM (GB)", value=cfg['gpu_vram'], precision=0, info="Your GPU's VRAM for batch size recommendations")
+                     # System RAM for ONNX models
+                     system_ram_default = cfg.get('system_ram', get_system_ram_gb())
+                     system_ram_inp = gr.Number(label="System RAM (GB)", value=system_ram_default, precision=0, info="Your System RAM for batch size recommendations")
                      
                      unload_val = cfg.get('unload_model', True) # Default to True if missing
                      g_unload_model = gr.Checkbox(label="Unload Model", value=unload_val, info="Unload model from VRAM immediately after finishing.")
@@ -686,12 +1114,13 @@ def create_ui(startup_message=None):
                      items_per_page = gr.Number(label="Items Per Page", value=app.gallery_items_per_page, precision=0, minimum=1, info="Images per gallery page")
                      gal_cols = gr.Slider(2, 16, step=1, label="Gallery Columns", value=app.gallery_columns, info="Number of columns in the image gallery")
                      gal_rows_slider = gr.Slider(0, 20, step=1, label="Gallery Rows", value=app.gallery_rows, info="Rows to display (0 = hide)")
+
                  
                  gr.Markdown("### 📦 Model Management")
                  
                  with gr.Row():
                      with gr.Column(scale=1):
-                         models_chk = gr.CheckboxGroup(choices=app.models, value=app.enabled_models, label="Enabled Models", info="Select which models appear in the model dropdown")
+                         models_chk.render() # Render the pre-defined component here
                      
                      with gr.Column(scale=1):
                          # Get current order (user config overrides global)
@@ -722,6 +1151,8 @@ def create_ui(startup_message=None):
                  with gr.Row():
                      settings_save_btn = gr.Button("💾 Save Settings", variant="primary", scale=0)
                      settings_reset_btn = gr.Button("🗑️ Reset", variant="secondary", scale=0)
+                     settings_reset_confirm_btn = gr.Button("⚠️ Confirm Reset", variant="stop", scale=0, visible=False)
+                     settings_reset_cancel_btn = gr.Button("Cancel", variant="secondary", scale=0, visible=False)
 
 
             # =========================================
@@ -784,15 +1215,14 @@ def create_ui(startup_message=None):
             with gr.Row():
                 gr.Markdown(
                     "<div style='font-size: 0.8em; color: gray; margin-left: 10px;'>"
-                    "⚠️ <b>Note:</b> Dragged files are saved to a temporary location. "
-                    "Outputs will be placed in the configured output folder (default: /output)."
+                    "⚠️ <b>Note:</b> Dragged files are saved to a temporary location and outputs will be placed in the configured output folder (default: /output)."
                     "</div>"
                 )
         
         with gr.Group(visible=app.gallery_rows > 0, elem_id="gallery_group") as gallery_group:
             with gr.Accordion("🖼️ Dataset Gallery", open=True) as gallery_accordion:
                 # Compact Pagination Controls
-                with gr.Row(elem_classes="pagination-row compact-pagination") as pagination_row:
+                with gr.Row(elem_classes="pagination-row compact-pagination", visible=False) as pagination_row:
                     prev_btn = gr.Button("◀", variant="secondary", size="sm", elem_classes="pagination-btn")
                     
                     # Page Number Input (User can type to jump)
@@ -895,43 +1325,43 @@ def create_ui(startup_message=None):
                 return [gr.update(visible=False)] * 7
             
             # Determine which fields to show based on mode
-            if prompt_source_value == "Instruction Template":
-                # Show: instruction_template, task_prompt
+            if prompt_source_value == "Prompt Presets":
+                # Show: prompt_presets, task_prompt
                 # Hide: prompt_prefix, prompt_file_extension, prompt_suffix
-                # Rows: instruction_mode VISIBLE, file_metadata_mode HIDDEN
+                # Rows: prompt_mode VISIBLE, file_metadata_mode HIDDEN
                 return [
-                    gr.update(visible=True),   # instruction_template
+                    gr.update(visible=True),   # prompt_presets
                     gr.update(visible=True),   # task_prompt
                     gr.update(visible=False),  # prompt_prefix
                     gr.update(visible=False),  # prompt_file_extension
                     gr.update(visible=False),  # prompt_suffix
-                    gr.update(visible=True),   # Row: instruction_mode
+                    gr.update(visible=True),   # Row: prompt_mode
                     gr.update(visible=False),  # Row: file_metadata_mode
                 ]
             elif prompt_source_value == "From File":
                 # Show: prompt_prefix, prompt_file_extension, prompt_suffix
-                # Hide: instruction_template, task_prompt
-                # Rows: instruction_mode HIDDEN, file_metadata_mode VISIBLE
+                # Hide: prompt_presets, task_prompt
+                # Rows: prompt_mode HIDDEN, file_metadata_mode VISIBLE
                 return [
-                    gr.update(visible=False),  # instruction_template
+                    gr.update(visible=False),  # prompt_presets
                     gr.update(visible=False),  # task_prompt
                     gr.update(visible=True),   # prompt_prefix
                     gr.update(visible=True),   # prompt_file_extension
                     gr.update(visible=True),   # prompt_suffix
-                    gr.update(visible=False),  # Row: instruction_mode
+                    gr.update(visible=False),  # Row: prompt_mode
                     gr.update(visible=True),   # Row: file_metadata_mode
                 ]
             elif prompt_source_value == "From Metadata":
                 # Show: prompt_prefix, prompt_suffix (NO file extension for metadata)
-                # Hide: instruction_template, task_prompt, prompt_file_extension
-                # Rows: instruction_mode HIDDEN, file_metadata_mode VISIBLE (but one child hidden)
+                # Hide: prompt_presets, task_prompt, prompt_file_extension
+                # Rows: prompt_mode HIDDEN, file_metadata_mode VISIBLE (but one child hidden)
                 return [
-                    gr.update(visible=False),  # instruction_template
+                    gr.update(visible=False),  # prompt_presets
                     gr.update(visible=False),  # task_prompt
                     gr.update(visible=True),   # prompt_prefix
                     gr.update(visible=False),  # prompt_file_extension
                     gr.update(visible=True),   # prompt_suffix
-                    gr.update(visible=False),  # Row: instruction_mode
+                    gr.update(visible=False),  # Row: prompt_mode
                     gr.update(visible=True),   # Row: file_metadata_mode
                 ]
             else:
@@ -1067,12 +1497,20 @@ def create_ui(startup_message=None):
                 
             return gallery_data, gr.update(value="Run Captioning", interactive=True), download_group_update, download_btn_update
         
-        def start_processing():
+        def start_processing(is_valid):
             """
             Update UI on run start:
             1. Run Button -> "Processing...", Disabled
             2. Download Button -> Show wrapper, set button to Processing state (spinner)
             """
+            if not is_valid:
+                # Don't change anything, or ensure it's in ready state
+                return (
+                    gr.update(value="Run Captioning", interactive=True), # Keep/Revert to normal
+                    gr.update(visible=False), # Hide download group if it was gonna show spinner
+                    gr.update() # download btn
+                )
+
             return (
                 gr.update(value="Processing...", interactive=False),  # run_btn
                 gr.update(visible=True),  # download_btn_group - SHOW IT so spinner is visible
@@ -1080,48 +1518,98 @@ def create_ui(startup_message=None):
                     value=None,
                     variant="secondary",
                     interactive=False,
-                    icon=None,  # Icon hidden by CSS anyway, but explicit is good
-                    elem_classes="download-btn processing"  # Adds spinner
-                )  # download_btn
+                    elem_classes="processing-btn" # Add processing class back?
+                )
             )
 
+
         # Run Logic with Dynamic State
-        def run_with_dynamic_state(model_id, 
-                                   model_ver, batch, tokens,
-                                   dynamic_settings,
-                                   # Global args
-                                   pre, suf, over, rec, con, unload, clean, collapse, norm, rm_cn, loop, w, h, limit, out_dir_glob, out_fmt):
+        # =======================================================
+        # SHARED ARGUMENT BUILDER (SINGLE SOURCE OF TRUTH)
+        # =======================================================
+        def build_inference_args(model_id, model_ver, batch, tokens, dynamic_settings, 
+                                 pre, suf, over, rec, con, unload, clean, collapse, norm, rm_cn, loop, 
+                                 w, h, limit, out_dir_glob, out_fmt):
+            """
+            Construct the final arguments dictionary for both proper runs and CLI generation.
+            Ensures 100% consistency between what is run and what is generated.
+            """
             
-            # Base args from dynamic state
-            args = dynamic_settings.copy() if dynamic_settings else {}
+            # 1. Get Model Config and Defaults
+            model_config = app.config_mgr.get_model_config(model_id)
+            model_defaults = model_config.get('defaults', {})
             
-            # Add static overrides
-            args['model_version'] = model_ver
-            args['batch_size'] = int(batch) if batch else 1
-            args['max_tokens'] = int(tokens) if tokens else 512
+            # 2. Start with model defaults
+            args_dict = model_defaults.copy()
             
-            # Add globals
-            args.update({
-                'prefix': pre, 'suffix': suf, 
-                'overwrite': over, 'recursive': rec, 
-                'print_console': con, 'unload_model': unload,
-                'clean_text': clean, 'collapse_newlines': collapse, 
-                'normalize_text': norm, 'remove_chinese': rm_cn, 
-                'strip_loop': loop,
-                'max_width': int(w) if w else None, 
-                'max_height': int(h) if h else None,
-                'limit_count': limit,
-                'output_dir': out_dir_glob,
-                'output_format': out_fmt
-            })
+            # 3. Update with dynamic settings from state (overrides defaults)
+            if dynamic_settings:
+                # Filter out any None values that might have snuck in (though dict.update handles them, good to be clean)
+                clean_dynamic = {k: v for k, v in dynamic_settings.items() if v is not None}
+                args_dict.update(clean_dynamic)
             
-            # Add global settings (VRAM)
+            # 4. Add static overrides / Global UI controls
+            # These typically override model defaults as they are explicit user inputs on the main UI
+            
+            # Model Version
+            if model_ver: 
+                args_dict['model_version'] = model_ver
+            
+            # Batch Size & Tokens (Validation handled by inputs, but ensure int)
+            if batch: args_dict['batch_size'] = int(batch)
+            if tokens: args_dict['max_tokens'] = int(tokens)
+            
+            # Global Text Processing
+            if pre: args_dict['prefix'] = pre
+            if suf: args_dict['suffix'] = suf
+            if clean is not None: args_dict['clean_text'] = clean
+            if collapse is not None: args_dict['collapse_newlines'] = collapse
+            if norm is not None: args_dict['normalize_text'] = norm
+            if rm_cn is not None: args_dict['remove_chinese'] = rm_cn
+            if loop is not None: args_dict['strip_loop'] = loop
+            
+            # Global Image Processing
+            args_dict['max_width'] = int(w) if w else None
+            args_dict['max_height'] = int(h) if h else None
+            
+            # Global Execution Flags
+            if over is not None: args_dict['overwrite'] = over
+            if rec is not None: args_dict['recursive'] = rec
+            if con is not None: args_dict['print_console'] = con
+            if unload is not None: args_dict['unload_model'] = unload
+            
+            # Output Settings
+            if out_dir_glob: args_dict['output_dir'] = out_dir_glob
+            if out_fmt: args_dict['output_format'] = out_fmt
+            if limit: args_dict['limit_count'] = limit
+
+            # Add Global Settings (VRAM)
             g_set = app.config_mgr.get_global_settings()
-            args['gpu_vram'] = g_set.get('gpu_vram', 24)
+            args_dict['gpu_vram'] = g_set.get('gpu_vram', 24)
+            
+            return args_dict
+
+        # =======================================================
+        # RUN LOGIC
+        # =======================================================
+        def run_with_dynamic_state(*args):
+            # Args unpacking (Last arg is validation state)
+            is_valid = args[-1]
+            if not is_valid:
+                 # Return "Reset" state essentially, mimicking the return of a successful run but without doing work
+                 # Return signature: gallery_data, run_btn_update, dl_grp_update, dl_btn_update
+                 return gr.update(), gr.update(value="Run Captioning", interactive=True), gr.update(visible=False), gr.update(visible=False)
+
+            # Unpack inputs corresponding to build_inference_args signature
+            # Slicing: all except last (validation state)
+            input_args = args[:-1]
+            
+            # Build the unified args dictionary
+            args_dict = build_inference_args(*input_args)
             
             # Run Inference
             # app.run_inference uses self.dataset so we don't pass files here
-            result = app.run_inference(model_id, args)
+            result = app.run_inference(args_dict.get('model_id') or app.current_model_id, args_dict)
             
             # Handle Result Unpacking
             stats = {}
@@ -1156,212 +1644,176 @@ def create_ui(startup_message=None):
                 elif skipped > 0:
                      gr.Info(f"Skipped all {skipped} files (already exist).<br>Check 'Overwrite' to re-caption.", title="No Changes")
                 else:
-                    # Fallback if 0 processed 0 skipped - this is an error condition
                     gr.Warning("No files were processed. The dataset may be empty.")
 
                 if empty > 0:
                     gr.Warning(f"{empty} captions were empty!")
             else:
-                # No stats returned - fallback error
                 gr.Warning("Processing completed but no statistics were returned.")
             
             # Download Button Logic
             dl_grp = gr.update(visible=False)
             dl_btn = gr.update(visible=False)
             if isinstance(download_update, dict) and download_update.get('value'):
-                # If download_update has a value (zip file path), show the button
                 dl_grp = gr.update(visible=True)
                 dl_btn = gr.update(
                     value=download_update.get('value'),
                     visible=True,
                     interactive=True,
-                    variant="primary",  # Keep green
+                    variant="primary",
                     icon="src/core/download_white.svg",
-                    elem_classes="download-btn"  # Remove "processing" class to stop spinner
+                    elem_classes="download-btn"
                 )
 
             return gallery_data, gr.update(value="Run Captioning", interactive=True), dl_grp, dl_btn
 
 
+        # =======================================================
+        # GENERATE COMMAND LOGIC
+        # =======================================================
+        command_visible_state = gr.State(value=False)
+
+        def generate_cli_wrapper(current_visible, *args):
+            # Toggle logic
+            if current_visible:
+                # If currently visible, hide it params: (value, visible)
+                return gr.update(visible=False, value=""), False, gr.update(value="Generate Command")
+            
+            # Build unified args
+            args_dict = build_inference_args(*args)
+            
+            # Generate CLI string
+            model_id = args_dict.get('model_id') or app.current_model_id
+            
+            # Generate full command including defaults for transparency
+            cmd = app.generate_cli_command(model_id, args_dict, skip_defaults=False)
+            
+            return gr.update(value=cmd, visible=True), True, gr.update(value="Generate Command ▼")
+
+        # State for validation flow control
+        run_valid_state = gr.State(value=True)
+        multi_run_valid_state = gr.State(value=True)
+
+        def validate_run_state(model_id):
+            """
+            Validate strict requirements before starting the run flow.
+            Returns False and shows Warning if conditions aren't met.
+            """
+            if not app.dataset or not app.dataset.images:
+                gr.Warning("No media found. Please load a folder or add images to the 'Input Source'.")
+                return False
+            
+            # Check for media type compatibility
+            config = app.config_mgr.get_model_config(model_id)
+            supported_media = config.get('media_type', ["Image"]) # Default to Image
+            if isinstance(supported_media, str):
+                supported_media = [supported_media]
+
+            has_images = any(img.media_type == "image" for img in app.dataset.images)
+            has_videos = any(img.media_type == "video" for img in app.dataset.images)
+            
+            # 1. Check if dataset has ANY valid files
+            if not has_images and not has_videos:
+                 gr.Warning("Dataset contains no valid image or video files.")
+                 return False
+
+            supports_image = "Image" in supported_media
+            supports_video = "Video" in supported_media
+
+            # RELAXED VALIDATION:
+            # We trust the base wrapper to handle conversion (Video -> Image) if needed.
+            # So we don't strictly block Video input for Image-only models anymore.
+            
+            # However, if Model is Video-Only (rare/theoretical) and we only have Images, 
+            # we typically can't "convert" Image -> Video easily/meaningfully for captioning in the same way.
+            # But mostly VLM models that support Video also support Image.
+            
+            if supports_video and not supports_image and not has_videos and has_images:
+                 gr.Warning(f"Model '{model_id}' only supports Video, but dataset contains only Images.")
+                 return False
+            
+            return True
+
+        # Wire Up Run Button
         run_btn.click(
+            validate_run_state,
+            inputs=[model_sel],
+            outputs=[run_valid_state]
+        ).then(
             start_processing,
-            inputs=None,
-            outputs=[run_btn, download_btn_group, download_btn]  # Group visibility + button value
+            inputs=[run_valid_state],
+            outputs=[run_btn, download_btn_group, download_btn]
         ).then(
             run_with_dynamic_state,
             inputs=[
                 model_sel, 
                 model_version_dropdown, batch_size_input, max_tokens_input,
                 settings_state, # DYNAMIC STATE
-                # Globals
+                # Globals must match build_inference_args signature order
                 pre_text, suf_text, g_over, g_recursive, g_console, g_unload_model,
                 g_clean, g_collapse, g_normalize, g_remove_chinese, g_strip_loop,
-                g_max_width, g_max_height, limit_count, out_dir, out_fmt
+                g_max_width, g_max_height, limit_count, out_dir, out_fmt,
+                run_valid_state # VALIDATION STATE (last arg)
             ],
             outputs=[gal, run_btn, download_btn_group, download_btn],
             show_progress="minimal"
         )
-        
-        # Save Settings Button (Phase 3)
-        # Note: We need to update handlers list in imports if we move logic there, 
-        # or bind directly to app.save_settings.
-        # Since we modified the inputs significantly, we need to update app.save_settings to match this.
-        save_btn.click(
-            app.save_settings,
+
+        # Wire Up Generate Command Button
+        generate_command_btn.click(
+            generate_cli_wrapper,
             inputs=[
-                # System inputs
-                vram_inp, models_chk, gal_cols, gal_rows_slider, limit_count,
-                # Output Settings
-                out_dir, out_fmt, g_over, g_recursive, g_console, g_unload_model,
-                # Pre/Suffix
-                pre_text, suf_text, 
-                # Text Processing
-                g_clean, g_collapse, g_normalize, g_remove_chinese, g_strip_loop,
-                # Image
-                g_max_width, g_max_height,
-                # Model Params (for model-specific defaults) - now using dynamic components
-                model_sel, *model_feature_components.values(),
-                # State needed for dynamic features
+                command_visible_state, # Current visibility state
+                model_sel, model_version_dropdown, batch_size_input, max_tokens_input,
                 settings_state,
-                # items_per_page added at end to minimize diff
-                items_per_page
-            ],
-            outputs=[] # Just save to disk / notification
-        )
-        
-        # Generate Command Button - toggles command display textbox
-        # Generate Command Button - toggles command display textbox
-        def generate_command_handler(model_id, current_visibility, settings_dict, *all_inputs):
-            """Toggle command display and generate CLI command."""
-            # Split inputs same way as run_with_button_state
-            num_model_features = len(model_feature_components)
-            feature_values = all_inputs[:num_model_features]
-            global_values = all_inputs[num_model_features:]
-            
-            # If currently visible, hide it
-            if current_visibility:
-                return gr.update(visible=False, value=""), gr.update(value="Generate Command")
-            
-            # Build complete args dict
-            args = {}
-            
-            # Add dynamic features from state (Priority)
-            if settings_dict:
-                args.update(settings_dict)
-                
-            # Add static model-specific features (overrides state if duplicate, but usually disjoint)
-            for feature_name, value in zip(model_feature_components.keys(), feature_values):
-                args[feature_name] = value
-            
-            # Add global features
-            if len(global_values) >= 14:
-                args['prefix'] = global_values[0]
-                args['suffix'] = global_values[1]
-                args['overwrite'] = global_values[2]
-                args['recursive'] = global_values[3]
-                args['print_console'] = global_values[4]
-                args['clean_text'] = global_values[5]
-                args['collapse_newlines'] = global_values[6]
-                args['normalize_text'] = global_values[7]
-                args['remove_chinese'] = global_values[8]
-                args['strip_loop'] = global_values[9]
-                args['max_width'] = global_values[10]
-                args['max_height'] = global_values[11]
-                args['output_dir'] = global_values[12]
-                args['output_format'] = global_values[13]
-            
-            # Generate command with ALL parameters (skip_defaults=False)
-            cli_command = app.generate_cli_command(model_id, args, skip_defaults=False)
-            
-            # Show textbox with command
-            return gr.update(visible=True, value=cli_command), gr.update(value="Close Command")
-        
-        gen_cmd_btn.click(
-            generate_command_handler,
-            inputs=[
-                model_sel, cmd_output, settings_state,
-                # Model Params
-                *model_feature_components.values(),
-                # Globals
-                pre_text, suf_text, g_over, g_recursive, g_console,
+                pre_text, suf_text, g_over, g_recursive, g_console, g_unload_model,
                 g_clean, g_collapse, g_normalize, g_remove_chinese, g_strip_loop,
-                g_max_width, g_max_height, out_dir, out_fmt
+                g_max_width, g_max_height, limit_count, out_dir, out_fmt
             ],
-            outputs=[cmd_output, gen_cmd_btn]
+            outputs=[command_output, command_visible_state, generate_command_btn]
         )
+        
+        # Generator wrapper for multi-model processing UI update
+        def start_multi_processing(is_valid):
+            if not is_valid:
+                return gr.update(value="Run Captioning", interactive=True)
+            return gr.update(value="Processing...", interactive=False)
 
-        # Inspector events
-        gal.select(app.open_inspector, outputs=[inspector_group, insp_tabs, insp_img, insp_video, insp_cap])
-        save_cap_btn.click(app.save_and_close, inputs=[insp_cap], outputs=[gal, inspector_group])
-        close_insp_btn.click(app.close_inspector, outputs=[inspector_group])
+        # Wrapper for multi run to check validity
+        def run_multi_wrapper(*inputs):
+             # Inputs: [*checkboxes, *formats, limit, is_valid]
+             is_valid = inputs[-1]
+             real_inputs = inputs[:-1]
+             
+             if not is_valid:
+                 return gr.update() # No gallery update
+             
+             return app.run_multi_model_inference(*real_inputs)
 
-        # Tools
-        meta_run.click(app.run_metadata, inputs=[meta_src, meta_upd], outputs=[gal])
-        resize_run.click(app.run_resize, inputs=[resize_px], outputs=[gal])
-        
-        # Multi-Model Captioning Events
-        # Select All / Deselect All
-        multi_select_all_btn.click(
-            lambda: [gr.update(value=True) for _ in app.models],
-            outputs=list(multi_model_checkboxes.values())
-        )
-        multi_deselect_all_btn.click(
-            lambda: [gr.update(value=False) for _ in app.models],
-            outputs=list(multi_model_checkboxes.values())
-        )
-        
-        # Save Settings
-        multi_save_btn.click(
-            app.save_multi_model_settings,
-            inputs=[*multi_model_checkboxes.values(), *multi_model_formats.values()],
-            outputs=[]
-        )
-        
-        # Generate Command (Toggle)
-        def multi_gen_cmd_handler(current_visibility, *inputs):
-            # inputs = [feature values... checkboxes... formats...]
-            # Split: feature values, then multi-model checkboxes, then formats
-            num_features = len(model_feature_components)
-            num_models = len(app.models)
-            
-            feature_values = inputs[:num_features]
-            checkboxes = inputs[num_features:num_features + num_models]
-            formats = inputs[num_features + num_models:]
-            
-            if current_visibility:
-                return gr.update(visible=False, value=""), gr.update(value="Generate Command")
-            else:
-                # Build feature dict from current UI values
-                current_settings = {}
-                for i, (name, component) in enumerate(model_feature_components.items()):
-                    current_settings[name] = feature_values[i]
-                
-                # Pass current settings + checkboxes + formats
-                commands = app.generate_multi_model_commands_with_settings(current_settings, checkboxes, formats)
-                return gr.update(visible=True, value=commands), gr.update(value="Close Command")
-        
-        multi_gen_cmd_btn.click(
-            multi_gen_cmd_handler,
-            inputs=[multi_cmd_output, *model_feature_components.values(), *multi_model_checkboxes.values(), *multi_model_formats.values()],
-            outputs=[multi_cmd_output, multi_gen_cmd_btn]
-        )
-        
+
         # Run Captioning
-        multi_run_btn.click(
-            lambda: gr.update(value="Processing...", interactive=False),
-            outputs=[multi_run_btn]
-        ).then(
-            app.run_multi_model_inference,
-            inputs=[*multi_model_checkboxes.values(), *multi_model_formats.values()],
-            outputs=[gal]
-        ).then(
-            lambda: gr.update(value="Run Captioning", interactive=True),
-            outputs=[multi_run_btn]
+        def validate_dataset_only():
+             if not app.dataset or not app.dataset.images:
+                gr.Warning("No media found. Please load a folder or add images to the 'Input Source'.")
+                return False
+             return True
+
+        # Model Selection Change Event
+        # NOTE: feature rendering is handled by @gr.render above.
+        # We only need to update the default values/description in the static UI parts.
+        
+        # We DO NOT want to call update_model_ui because it returns a fixed list of 11 updates
+        # which blindly target dynamic components by index, causing label corruption.
+        # The re-render logic handles all feature initialization correctly.
+        
+        model_sel.change(
+            fn=lambda m: gr.update(value=get_model_description_html(app, m)),
+            inputs=[model_sel],
+            outputs=[model_description]
         )
         
         
         
-        # Data Loading (Shared)
         # Data Loading (Shared)
         load_source_btn.click(app.load_input_source, inputs=[input_path_text, g_recursive, limit_count], outputs=[gal, input_files, page_number_input, total_pages_label, pagination_row])
         clear_gallery_btn.click(app.clear_gallery, outputs=[gal, inspector_group, page_number_input, total_pages_label, pagination_row])
@@ -1403,12 +1855,7 @@ def create_ui(startup_message=None):
         gal_rows_slider.change(refresh_vis_rows, inputs=[gal_rows_slider], outputs=[gallery_group, gal])
         
         # Preset selection trigger
-        if 'instruction_template' in model_feature_components and 'task_prompt' in model_feature_components:
-            model_feature_components['instruction_template'].change(
-                app.apply_preset, 
-                inputs=[model_sel, model_feature_components['instruction_template']], 
-                outputs=[model_feature_components['task_prompt']]
-            )
+
 
         # Pagination Events
         # We need app methods that return (gallery, page_num, total_label, row_vis)
@@ -1443,7 +1890,7 @@ def create_ui(startup_message=None):
         demo.load(
             update_model_settings_ui,
             inputs=[model_sel],
-            outputs=model_settings_outputs  # Use same outputs list as model_sel.change (includes model_description)
+            outputs=model_settings_outputs  # Use same outputs list as model_sel.change
         )
         
         demo.load(
@@ -1500,24 +1947,221 @@ def create_ui(startup_message=None):
             outputs=[model_order_radio, model_order_textbox, model_order_state]
         )
 
+        # Main Save Settings Button (Captioning Tab)
+        save_btn.click(
+            app.save_settings,
+            inputs=[
+                vram_inp, models_chk, gal_cols, gal_rows_slider, limit_count,
+                out_dir, out_fmt, g_over, g_recursive, g_console, g_unload_model,
+                pre_text, suf_text, g_clean, g_collapse, g_normalize, g_remove_chinese, g_strip_loop,
+                g_max_width, g_max_height,
+                model_sel, model_version_dropdown, batch_size_input, max_tokens_input,
+                settings_state, items_per_page
+            ],
+            outputs=[]
+        )
+
+        # =========================================
+        # Multi-Model Tab Event Bindings
+        # =========================================
+        
+        # Select/Deselect All
+        def set_all_multi_models(val):
+            return [gr.update(value=val) for _ in multi_model_checkboxes]
+            
+        multi_select_all_btn.click(
+            fn=lambda: set_all_multi_models(True),
+            inputs=[],
+            outputs=list(multi_model_checkboxes.values())
+        )
+        
+        multi_deselect_all_btn.click(
+            fn=lambda: set_all_multi_models(False),
+            inputs=[],
+            outputs=list(multi_model_checkboxes.values())
+        )
+
+        # Save Settings
+        multi_save_btn.click(
+            app.save_multi_model_settings,
+            inputs=[*multi_model_checkboxes.values(), *multi_model_formats.values()],
+            outputs=[]
+        )
+
+        # Generate Command
+        def gen_multi_cmd_wrapper(*args):
+             cmd = app.generate_multi_model_commands(*args)
+             return gr.update(value=cmd, visible=True)
+             
+        multi_gen_cmd_btn.click(
+            gen_multi_cmd_wrapper,
+            inputs=[*multi_model_checkboxes.values(), *multi_model_formats.values()],
+            outputs=[multi_cmd_output]
+        )
+
+        # Run Captioning
+        def validate_multi_run():
+            if not app.dataset or not app.dataset.images:
+                gr.Warning("No media loaded. Please load a folder first.")
+                return False
+            return True
+
+        multi_run_btn.click(
+            validate_multi_run,
+            inputs=[],
+            outputs=[multi_run_valid_state]
+        ).then(
+            start_multi_processing,
+            inputs=[multi_run_valid_state],
+            outputs=[multi_run_btn]
+        ).then(
+            run_multi_wrapper,
+            # Inputs: checkboxes..., formats..., limit_count, valid_state
+            inputs=[*multi_model_checkboxes.values(), *multi_model_formats.values(), limit_count, multi_run_valid_state],
+            outputs=[gal]
+        ).then(
+            lambda: gr.update(value="Run Captioning", interactive=True),
+            outputs=[multi_run_btn]
+        )
+
         # Settings Tab Buttons
         settings_save_btn.click(
             app.save_settings_simple,
-            inputs=[vram_inp, models_chk, gal_cols, gal_rows_slider, g_unload_model, model_order_textbox, items_per_page],
+            inputs=[vram_inp, system_ram_inp, models_chk, gal_cols, gal_rows_slider, g_unload_model, model_order_textbox, items_per_page],
             outputs=[model_sel, models_chk, model_order_radio] + list(multi_model_checkboxes.values()) + list(multi_model_formats.values())
+        )
+
+        # =========================================
+        # Multi-Model Tab Event Bindings
+        # =========================================
+        
+        # Select/Deselect All
+        def set_all_multi_models(val):
+            return [gr.update(value=val) for _ in multi_model_checkboxes]
+            
+        multi_select_all_btn.click(
+            fn=lambda: set_all_multi_models(True),
+            inputs=[],
+            outputs=list(multi_model_checkboxes.values())
+        )
+        
+        multi_deselect_all_btn.click(
+            fn=lambda: set_all_multi_models(False),
+            inputs=[],
+            outputs=list(multi_model_checkboxes.values())
+        )
+
+        # Save Settings
+        multi_save_btn.click(
+            app.save_multi_model_settings,
+            inputs=[*multi_model_checkboxes.values(), *multi_model_formats.values()],
+            outputs=[]
+        )
+
+        # Generate Command
+        multi_command_visible_state = gr.State(value=False)
+
+        def gen_multi_cmd_wrapper(current_visible, *args):
+             if current_visible:
+                 return gr.update(value="", visible=False), False, gr.update(value="Generate Command")
+             
+             cmd = app.generate_multi_model_commands(*args)
+             return gr.update(value=cmd, visible=True), True, gr.update(value="Generate Command ▼")
+             
+        multi_gen_cmd_btn.click(
+            gen_multi_cmd_wrapper,
+            inputs=[multi_command_visible_state, *multi_model_checkboxes.values(), *multi_model_formats.values()],
+            outputs=[multi_cmd_output, multi_command_visible_state, multi_gen_cmd_btn]
+        )
+
+        # Run Captioning
+        def validate_multi_run():
+            if not app.dataset or not app.dataset.images:
+                gr.Warning("No media loaded. Please load a folder first.")
+                return False
+            return True
+
+        multi_run_btn.click(
+            validate_multi_run,
+            inputs=[],
+            outputs=[multi_run_valid_state]
+        ).then(
+            start_multi_processing,
+            inputs=[multi_run_valid_state],
+            outputs=[multi_run_btn]
+        ).then(
+            run_multi_wrapper,
+            # Inputs: checkboxes..., formats..., limit_count, valid_state
+            inputs=[*multi_model_checkboxes.values(), *multi_model_formats.values(), limit_count, multi_run_valid_state],
+            outputs=[gal]
+        ).then(
+            lambda: gr.update(value="Run Captioning", interactive=True),
+            outputs=[multi_run_btn]
         )
         
         # Reset to Defaults - requires manual page refresh after reset
-        def reset_handler():
+        def request_reset_confirmation():
+            """Hide reset button, show confirmation buttons."""
+            return (
+                gr.update(visible=False), # reset_btn
+                gr.update(visible=True),  # confirm
+                gr.update(visible=True)   # cancel
+            )
+
+        def cancel_reset_confirmation():
+            """Hide confirmation buttons, show reset button."""
+            return (
+                gr.update(visible=True),  # reset_btn
+                gr.update(visible=False), # confirm
+                gr.update(visible=False)  # cancel
+            )
+
+        def execute_reset():
+            """Execute logic and restore buttons."""
             success, message = app.reset_to_defaults()
             if success:
                 gr.Info(message)
             else:
                 gr.Warning(message)
+            
+            # Restore UI state
+            return (
+                gr.update(visible=True),  # reset_btn
+                gr.update(visible=False), # confirm
+                gr.update(visible=False)  # cancel
+            )
         
+        # 1. Click Reset -> Show Confirmation
         settings_reset_btn.click(
-            reset_handler,
-            outputs=[]
+            request_reset_confirmation,
+            inputs=[],
+            outputs=[settings_reset_btn, settings_reset_confirm_btn, settings_reset_cancel_btn]
+        )
+
+        # 2. Click Cancel -> Restore
+        settings_reset_cancel_btn.click(
+            cancel_reset_confirmation,
+            inputs=[],
+            outputs=[settings_reset_btn, settings_reset_confirm_btn, settings_reset_cancel_btn]
+        )
+
+        # 3. Click Confirm -> Execute and Restore
+        settings_reset_confirm_btn.click(
+            execute_reset,
+            inputs=[],
+            outputs=[settings_reset_btn, settings_reset_confirm_btn, settings_reset_cancel_btn]
+        )
+
+        # Wire Up Tools
+        meta_run.click(
+            app.run_metadata,
+            inputs=[meta_src, meta_upd, meta_pre, meta_suf, meta_clean, meta_collapse, meta_norm, meta_out_dir, meta_ext],
+            outputs=[gal]
+        )
+        resize_run.click(
+            app.run_resize,
+            inputs=[resize_px, resize_out_dir, resize_pre, resize_suf, resize_ext, resize_overwrite],
+            outputs=[gal]
         )
 
         if startup_message:

@@ -34,25 +34,38 @@ presets:
   video_tokens:
     - min_video_tokens
     - max_video_tokens
-  
-  # WD14-specific settings (threshold, resolution)
-  wd14_settings:
-    - threshold
-    - image_size
-  
-  # Prompt source selection and system prompt
-  system_and_prompt_control:
-    - system_prompt
-    - prompt_source
-    - instruction_template
 
   # Prompt source selection
   prompt_control:
     - prompt_source
-    - instruction_template
+    - prompt_presets
+
+  # Prompt source selection and system prompt
+  system_and_prompt_control:
+    - system_prompt
+    - prompt_source
+    - prompt_presets
+
+  # Flash and Prompt source selection and system prompt
+  flash_system_and_prompt_control:
+    - flash_attention
+    - system_prompt
+    - prompt_source
+    - prompt_presets
+
+  # Prompt source selection
+  mode_prompt_control:
+    - model_mode
+    - prompt_source
+    - prompt_presets
+
+  # Prompt Presets and Prompts
+  prompt_preset_and_prompt:
+    - prompt_presets
+    - task_prompt
   
-  # Instruction template and task prompt fields
-  instruction_fields:
+  # Prompt Presets and task prompt fields
+  prompt_input:
     - task_prompt
   
   # File/metadata prompt fields

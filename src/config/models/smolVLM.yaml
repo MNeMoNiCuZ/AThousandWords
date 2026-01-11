@@ -1,48 +1,52 @@
+# Metadata
 name: "SmolVLM"
 id: "smolVLM"
 wrapper_path: "src.wrappers.smolvlm.SmolVLMWrapper"
+tags: false
+natural_language: true
 model_path: "HuggingFaceTB/SmolVLM-Instruct"
-description: "Fast and efficient vision-language model (256M or 500M)."
+description: "Fast and efficient (256M or 500M)."
 media_type:
   - "Image"
-caption_speed: 4
+caption_speed: 1.5
+licence: "Apache 2.0"
+licence-url: "https://choosealicense.com/licenses/apache-2.0/"
 
-# Supported features from features/ module
+# Supported features
 features:
   - model_version
   - task_prompt
-  - instruction_template
+  - prompt_presets
   - prompt_source
   - prompt_prefix
   - prompt_suffix
   - prompt_file_extension
 
-# Defaults extracted from source script
+# Defaults
 defaults:
   max_tokens: 512
   temperature: 0.7
   top_k: 50
   repetition_penalty: 1.1
-  task_prompt: "Describe the image in 10 words"
-  prompt_source: "Instruction Template"
-  prompt_prefix: "<s>[INST]"
-  prompt_suffix: "\n[IMG][/INST]"
   model_version: "500M"
+  prompt_source: "Prompt Presets"
+  prompt_presets: "Detailed Caption"
 
-# Model version options
+# Model version
 model_versions:
   "256M": "HuggingFaceTB/SmolVLM-256M-Instruct"
   "500M": "HuggingFaceTB/SmolVLM-500M-Instruct"
 
-# Instruction presets from source script comments
-instruction_presets:
-  "Comma Separated Tags": "Describe the image in one sentence"
-  "Short Caption": "Describe the image in one sentence"
-  "Medium Description": "Caption with a short description"
-  "Long Description": "Caption this image"
-  "Very Long Description": "Describe everything about this image in detail without formatting"
-  Tags: "List the key elements in this image as a couple of comma-separated tags."
+# Prompt presets
+prompt_presets:
+  Comma Separated Tags: "Describe the image in one sentence"
+  Short Caption: "Describe the image in one sentence"
+  Medium Caption: "Caption with a short description"
+  Detailed Caption: "Caption this image"
+  Very Detailed Caption: "Describe everything about this image in detail without formatting"
+  Tags: "List the key elements in this image as a couple of comma-separated tags"
 
+# VRAM Recommendations
 vram_table:
   "256M":
     4: 2
@@ -62,5 +66,5 @@ vram_table:
 # Feature layout
 feature_rows:
   - preset: prompt_control
-  - preset: instruction_fields
+  - preset: prompt_input
   - preset: file_metadata

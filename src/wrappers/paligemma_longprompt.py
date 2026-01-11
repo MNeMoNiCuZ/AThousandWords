@@ -108,7 +108,7 @@ class PaligemmaLongPromptWrapper(BaseCaptionModel):
         cleaned_words = [word for word in words if '_' not in word]
         return ' '.join(cleaned_words)
     
-    def _run_inference(self, images: List[Image.Image], prompt: str, args: Dict[str, Any]) -> List[str]:
+    def _run_inference(self, images: List[Image.Image], prompt: List[str], args: Dict[str, Any]) -> List[str]:
         """
         Run Paligemma inference on images.
         """
@@ -117,14 +117,13 @@ class PaligemmaLongPromptWrapper(BaseCaptionModel):
         temperature = args.get('temperature', 0.7)
         top_k = args.get('top_k', 50)
         
-        # Use prompt from args (task_prompt) or default fallback
-        # This replaces the hardcoded model_prompt
-        model_prompt = prompt if prompt else "<image>caption en"
+        # Prepare batch prompts
+        # Use prompt from args (task_prompt) or default fallback per image
+        prompts = []
+        for p in prompt:
+             prompts.append(p if p else "<image>caption en")
         
         results = []
-        
-        # Prepare batch prompts
-        prompts = [model_prompt] * len(images)
         
         try:
             # Batch encoding

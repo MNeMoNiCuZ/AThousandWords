@@ -52,7 +52,7 @@ class MimoVLWrapper(BaseCaptionModel):
         
         console.print(f"MimoVL loaded on {self.device}", color=Fore.GREEN, force=True)
     
-    def _run_inference(self, images: List[Image.Image], prompt: str, args: Dict[str, Any]) -> List[str]:
+    def _run_inference(self, images: List[Image.Image], prompt: List[str], args: Dict[str, Any]) -> List[str]:
         """
         Run MimoVL inference on a batch of images.
         
@@ -69,10 +69,10 @@ class MimoVLWrapper(BaseCaptionModel):
         
         # Build conversations for each image
         conversations = []
-        for _ in images:
+        for img, p in zip(images, prompt):
             conversation = [
                 {"role": "system", "content": [{"type": "text", "text": system_prompt}]},
-                {"role": "user", "content": [{"type": "image"}, {"type": "text", "text": prompt}]}
+                {"role": "user", "content": [{"type": "image"}, {"type": "text", "text": p}]}
             ]
             conversations.append(conversation)
         

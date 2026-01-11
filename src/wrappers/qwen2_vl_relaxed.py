@@ -57,35 +57,63 @@ class Qwen2VLRelaxedWrapper(BaseCaptionModel):
         
         print(f"Qwen2-VL-Relaxed loaded on {self.device}")
     
-    def _run_inference(self, images: List[Image.Image], prompt: str, args: Dict[str, Any]) -> List[str]:
+    def _run_inference(self, images: List[Any], prompt: List[str], args: Dict[str, Any]) -> List[str]:
         """
         Run Qwen2-VL-Relaxed inference on a batch of images.
         
         Args:
-            images: List of PIL Images
-            prompt: Text prompt for captioning
+            images: List of PIL Images or str/Path objects
+            prompt: List of text prompts (one per image)
             args: Dictionary of generation parameters
             
         Returns:
             List of generated captions
         """
+        # CRITICAL fix for WindowsPath error in transformers
+        # Ensure that if we have Path objects, they are converted to strings
+        # or kept as PIL Images
+        from pathlib import Path
+        processed_images = []
+        for img in images:
+            if isinstance(img, (str, Path)):
+                processed_images.append(str(img))
+            else:
+                processed_images.append(img)
+        images = processed_images
+
         # Get model-specific parameters
         max_tokens = args.get('max_tokens', 384)
         temperature = args.get('temperature', 0.7)
         top_k = args.get('top_k', 50)
         repetition_penalty = args.get('repetition_penalty', 1.3)
         
-        # Build messages for each image using Qwen chat format
+        # Build messages for each media item using Qwen chat format
+        # Separate images and videos for correct processor routing
         texts = []
-        for _ in images:
+        image_inputs = []
+        video_inputs = []
+        
+        for item, p in zip(images, prompt):
+            # Check if this is a video file
+            is_video = False
+            if isinstance(item, (str, Path)):
+                path_str = str(item).lower()
+                if path_str.endswith(('.mp4', '.avi', '.mov', '.mkv')):
+                    is_video = True
+                    video_inputs.append(str(item))
+            
+            if not is_video:
+                # It's an image (PIL Image or image path)
+                image_inputs.append(item)
+            
             conversation = [
                 {
                     "role": "user",
                     "content": [
                         {
-                            "type": "image",
+                            "type": "video" if is_video else "image",
                         },
-                        {"type": "text", "text": prompt},
+                        {"type": "text", "text": p},
                     ],
                 }
             ]
@@ -105,9 +133,11 @@ class Qwen2VLRelaxedWrapper(BaseCaptionModel):
             texts.append(text_prompt)
             
         # Prepare the inputs for the model in a batch
+        # Pass images and videos to their respective arguments
         inputs = self.processor(
             text=texts,
-            images=images,
+            images=image_inputs if image_inputs else None,
+            videos=video_inputs if video_inputs else None,
             padding=True,
             return_tensors="pt",
         )

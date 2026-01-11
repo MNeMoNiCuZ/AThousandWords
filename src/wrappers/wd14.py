@@ -150,8 +150,8 @@ class WD14Wrapper(BaseCaptionModel):
         padded = np.ones((size, size, 3), dtype=np.uint8) * 255
         padded[pad_h:pad_h+h, pad_w:pad_w+w] = img
         
-        # Get image size from args (feature) or fall back to default
-        target_size = args.get('image_size', 448)
+        # Target size is fixed for WD14 v3 models (ONNX export is fixed resolution)
+        target_size = 448
         
         # Resize to target
         if size != target_size:
@@ -167,7 +167,7 @@ class WD14Wrapper(BaseCaptionModel):
         
         return resized
     
-    def _run_inference(self, images: List[Image.Image], prompt: str, args: Dict[str, Any]) -> List[str]:
+    def _run_inference(self, images: List[Image.Image], prompt: List[str], args: Dict[str, Any]) -> List[str]:
         """Run WD14 tagging on images."""
         batch_input = []
         

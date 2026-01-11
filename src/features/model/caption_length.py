@@ -31,7 +31,7 @@ class CaptionLengthFeature(BaseFeature):
             default_value=None,
             description="Controls the length of generated captions",
             gui_type="dropdown",
-            gui_label="Caption Length",
+            gui_label="Caption Length (Caption Mode Only)",
             gui_info="Select caption verbosity. Options depend on the model.",
             gui_choices=[]  # Populated from model configuration
         )

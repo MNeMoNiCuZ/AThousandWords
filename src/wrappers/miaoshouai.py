@@ -108,7 +108,7 @@ class MiaoshouAIWrapper(BaseCaptionModel):
             
         print(f"MiaoshouAI loaded on {self.device}")
     
-    def _run_inference(self, images: List[Image.Image], prompt: str, args: Dict[str, Any]) -> List[str]:
+    def _run_inference(self, images: List[Image.Image], prompt: List[str], args: Dict[str, Any]) -> List[str]:
         """
         Run MiaoshouAI inference on a batch of images.
         
@@ -118,15 +118,16 @@ class MiaoshouAIWrapper(BaseCaptionModel):
         
         Args:
             images: List of PIL Images
-            prompt: Task prompt
+            prompt: List of prompts (one per image)
             args: Dictionary of generation parameters
             
         Returns:
             List of generated captions
         """
-        # Handle <EMPTY> mode
-        if prompt == "<EMPTY>":
-            return [""] * len(images)
+        # Handle <EMPTY> mode - Check if ALL prompts are empty marker
+        # Optimization: If any prompt is <EMPTY>, we handle it, but technically per-image check is better.
+        # But if the generic "task_prompt" was <EMPTY>, then all are <EMPTY>.
+        # We'll just process normally, but if a prompt is <EMPTY>, we expect empty result.
         
         max_tokens = args.get('max_tokens', 1024)
         temperature = args.get('temperature', 0.7)
@@ -136,7 +137,8 @@ class MiaoshouAIWrapper(BaseCaptionModel):
         captions = []
         
         # Batch preparation
-        prompts = [prompt] * len(images)
+        # prompts is now the input list
+        prompts = prompt
         
         try:
             # Prepare inputs for the whole batch
@@ -172,15 +174,19 @@ class MiaoshouAIWrapper(BaseCaptionModel):
             )
 
             # Post-process results
-            for text, image in zip(generated_texts, images):
+            for text, image, task_prompt_str in zip(generated_texts, images, prompts):
+                if task_prompt_str == "<EMPTY>":
+                    captions.append("")
+                    continue
+                    
                 cleaned_text = text.replace('<pad>', '').strip()
                 try:
                     parsed_answer = self.processor.post_process_generation(
                         cleaned_text,
-                        task=prompt,
+                        task=task_prompt_str,
                         image_size=(image.width, image.height)
                     )
-                    cap = parsed_answer.get(prompt, "")
+                    cap = parsed_answer.get(task_prompt_str, "")
                 except Exception as e:
                     print(f"Warning: post_process_generation failed: {e}, using raw output")
                     cap = cleaned_text

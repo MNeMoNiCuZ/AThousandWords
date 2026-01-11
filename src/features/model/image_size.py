@@ -22,7 +22,7 @@ class ModelImageSizeFeature(BaseFeature):
             description="Image resolution used for inference.",
             gui_type="number",
             gui_label="Image resolution",
-            gui_info="Resizes the images internally, Recommended: 448."
+            gui_info="Resizes the images internally before captioning"
         )
     
     def validate(self, value) -> int:

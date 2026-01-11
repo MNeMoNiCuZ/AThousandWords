@@ -31,14 +31,14 @@ class BaseCaptionModel(ABC):
     def __init__(self, config: Dict[str, Any]):
         self.config = config
         self.model = None
-        self.instruction_presets = config.get("instruction_presets", {})
+        self.prompt_presets = config.get("prompt_presets", {})
     
     @abstractmethod
     def _load_model(self):
         pass
     
     @abstractmethod
-    def _run_inference(self, images: List[Image.Image], prompt: str, args: Dict[str, Any]) -> List[str]:
+    def _run_inference(self, images: List[Image.Image], prompt: List[str], args: Dict[str, Any]) -> List[str]:
         pass
     
     def unload(self):
@@ -176,13 +176,13 @@ class BaseCaptionModel(ABC):
             # Prompt Source System - Get mode and settings
             from src.features import get_prompt_for_image
             
-            prompt_source_mode = args.get('prompt_source', 'Instruction Template')
+            prompt_source_mode = args.get('prompt_source', 'Prompt Presets')
             prompt_prefix = args.get('prompt_prefix', '')
             prompt_suffix = args.get('prompt_suffix', '')
             prompt_file_extension = args.get('prompt_file_extension', 'prompt')
             if not prompt_file_extension.startswith('.'):
                 prompt_file_extension = '.' + prompt_file_extension
-            instruction_template = args.get('instruction_template', '')
+            prompt_presets = args.get('prompt_presets', '')
             task_prompt = args.get('task_prompt', '')
             
             # Fallback to defaults if task_prompt is empty
@@ -192,25 +192,32 @@ class BaseCaptionModel(ABC):
             if not task_prompt:
                 task_prompt = default_task_prompt
             
-            # For "Instruction Template" mode, resolve prompt once before batch loop
+            # For "Prompt Presets" mode, resolve prompt once before batch loop
             base_prompt = None
-            if prompt_source_mode == "Instruction Template":
+            if prompt_source_mode == "Prompt Presets":
                 # Smart conflict resolution:
                 # If task_prompt differs from the default, assume user Intent overrides the Template.
-                # This fixes CLI issues where --task-prompt is ignored because --instruction_template defaults to "Detailed"
-                effective_template = instruction_template
+                # This fixes CLI issues where --task-prompt is ignored because --prompt_presets defaults to "Detailed"
+                effective_template = prompt_presets
                 
                 if task_prompt != default_task_prompt:
                     # User provided a custom prompt (or loaded one that differs from default)
-                    # We should prioritize this over the template preset
-                    effective_template = ""
+                    
+                    # Check if model supports custom prompts
+                    if self.config.get('supports_custom_prompts', True) is False:
+                        # Custom prompts NOT supported. Ignore user custom prompt.
+                        # effective_template remains as prompt_presets (which forces use of preset value)
+                        pass
+                    else:
+                        # We should prioritize this over the template preset
+                        effective_template = ""
                     
                 base_prompt = get_prompt_for_image(
                     image_path="",  # Not used in this mode
                     mode=prompt_source_mode,
-                    instruction_template=effective_template,
+                    prompt_preset_name=effective_template,
                     task_prompt=task_prompt,
-                    instruction_presets=self.instruction_presets
+                    presets_map=self.prompt_presets
                 )
             
             # File statistics - ALWAYS forced
@@ -244,6 +251,11 @@ class BaseCaptionModel(ABC):
                 for img_obj in batch:
                     img_name = img_obj.path.name
                     
+                    # SAFETY CHECK: Ensure file exists before attempting any processing
+                    if not img_obj.path.exists():
+                        console.print(f"  ❌ File not found: {img_name}", color=Fore.RED, force=True)
+                        continue
+                        
                     try:
                         # Check if this is a video
                         if img_obj.is_video():
@@ -257,9 +269,16 @@ class BaseCaptionModel(ABC):
                             else:
                                 # Model doesn't support video - extract first frame
                                 self._print_item("Video→Image", f"{img_name} (extracting first frame for image-only model)", Fore.YELLOW)
-                                image = img_obj._extract_video_thumbnail()
-                                if image is None:
+                                image_or_path = img_obj._extract_video_thumbnail()
+                                
+                                if image_or_path is None:
                                     raise ValueError(f"Failed to extract frame from video {img_name}")
+                                
+                                # CRITICAL FIX: Ensure we have a PIL Image, not a path string
+                                if isinstance(image_or_path, (str, Path)):
+                                    image = Image.open(image_or_path).convert("RGB")
+                                else:
+                                    image = image_or_path
                                 
                                 orig_w, orig_h = image.size
                                 
@@ -295,6 +314,41 @@ class BaseCaptionModel(ABC):
                 if not batch_images:
                     continue
                 
+                # Check for mixed media types (videos + images)
+                # Videos are Path objects, images are PIL Images
+                has_videos = any(isinstance(item, (str, Path)) and str(item).lower().endswith(('.mp4', '.avi', '.mov', '.mkv', '.webm')) for item in batch_images)
+                has_images = any(not (isinstance(item, (str, Path)) and str(item).lower().endswith(('.mp4', '.avi', '.mov', '.mkv', '.webm'))) for item in batch_images)
+                
+                if has_videos and has_images:
+                    console.print("  ⚠ Warning: Mixed media types detected (videos + images). Converting videos to images for processing.", color=Fore.YELLOW, force=True)
+                    # Convert video paths to PIL Images (extract first frame)
+                    converted_images = []
+                    for item in batch_images:
+                        is_video = isinstance(item, (str, Path)) and str(item).lower().endswith(('.mp4', '.avi', '.mov', '.mkv', '.webm'))
+                        if is_video:
+                            # Extract first frame from video
+                            from src.core.dataset import MediaObject
+                            img_obj = MediaObject(path=Path(item))
+                            frame = img_obj._extract_video_thumbnail()
+                            if frame is None:
+                                console.print(f"  Failed to extract frame from {Path(item).name}, skipping", color=Fore.RED, force=True)
+                                continue
+                            # Ensure it's a PIL Image
+                            if isinstance(frame, (str, Path)):
+                                frame = Image.open(frame).convert("RGB")
+                            converted_images.append(frame)
+                        else:
+                            converted_images.append(item)
+                    
+                    batch_images = converted_images
+                    
+                    if not batch_images:
+                        console.print("  No media remaining after conversion. Skipping batch.", color=Fore.YELLOW, force=True)
+                        continue
+                elif has_videos and not has_images:
+                     # Only videos detected AND model supports them (since they are in batch_images as Paths)
+                     console.print("  Only videos detected, captioning videos", color=Fore.YELLOW, force=True)
+                
                 
                 # =====================================================
                 # INFERENCE SECTION (YELLOW)
@@ -303,28 +357,65 @@ class BaseCaptionModel(ABC):
                 self._print_item("Images", str(len(batch_images)), Fore.YELLOW)
                 
                 # Resolve prompt based on mode
-                if prompt_source_mode == "Instruction Template":
-                    # Use the pre-resolved base_prompt for all images
-                    final_prompt = base_prompt
+                prompt_list = []
+                
+                if prompt_source_mode == "Prompt Presets":
+                    # Optimization: Use the pre-resolved base_prompt for all images
+                    # This ensures identical prompts for the whole batch
+                    final_prompt = base_prompt or task_prompt
+                    prompt_list = [final_prompt] * len(batch_images)
                 else:
                     # For File/Metadata modes, we need per-image prompts
-                    # For now, use the first image's prompt (batch processing limitation)
-                    # This will be improved later to support per-image prompts in batch
-                    if valid_batch:
-                        final_prompt = get_prompt_for_image(
-                            image_path=str(valid_batch[0].path),
-                            mode=prompt_source_mode,
-                            prefix=prompt_prefix,
-                            suffix=prompt_suffix,
-                            extension=prompt_file_extension,
-                            instruction_template=instruction_template,
-                            task_prompt=task_prompt,
-                            instruction_presets=self.instruction_presets
-                        )
-                    else:
-                        final_prompt = task_prompt
-                
-                raw_captions = self._run_inference(batch_images, final_prompt, args)
+                    # We must validate EACH image to ensure we have a prompt
+                    # If strict mode (implied by "From File"/"From Metadata"), we skip images without prompts
+                    
+                    filtered_batch_images = []
+                    filtered_valid_batch = []
+                    
+                    for i, (img_item, img_obj) in enumerate(zip(batch_images, valid_batch)):
+                        try:
+                            # Use strict=True to get None if missing
+                            p = get_prompt_for_image(
+                                image_path=str(img_obj.path),
+                                mode=prompt_source_mode,
+                                prefix=prompt_prefix,
+                                extension=prompt_file_extension,
+                                suffix=prompt_suffix,
+                                prompt_preset_name=prompt_presets,
+                                task_prompt=task_prompt,
+                                presets_map=self.prompt_presets,
+                                strict=True 
+                            )
+                            
+                            if p is None:
+                                console.print(f"  Skipping {img_obj.path.name}: No prompt found in {prompt_source_mode} mode", color=Fore.RED, force=True)
+                                # Increment skip count? Ideally yes, but we are inside batch loop. 
+                                # Just log for now.
+                                continue
+
+                            # DEBUG: Always print resolved prompt for custom sources
+                            # Print FULL prompt - no truncation, to verify content
+                            self._print_item("Prompt", f"{p}", Fore.CYAN)
+                                
+                            prompt_list.append(p)
+                            filtered_batch_images.append(img_item)
+                            filtered_valid_batch.append(img_obj)
+                            
+                        except Exception as ex:
+                            console.print(f"  Error resolving prompt for {img_obj.path.name}: {ex}", color=Fore.RED, force=True)
+                            continue
+                    
+                    # Update the batch lists to only contain items with valid prompts
+                    batch_images = filtered_batch_images
+                    valid_batch = filtered_valid_batch
+                    
+                    if not batch_images:
+                        console.print("  No valid images left in batch after prompt resolution. Skipping batch.", color=Fore.YELLOW)
+                        continue
+
+                # Pass everything to inference
+                # CRITICAL CHANGE: Now passing List[str] instead of str
+                raw_captions = self._run_inference(batch_images, prompt_list, args)
                 
                 
                 # Print raw captions in inference section
@@ -410,14 +501,14 @@ class BaseCaptionModel(ABC):
             
             if is_oom and torch.cuda.is_available():
                 # Simple, concise OOM message in light red
-                console.print("\n🔴 CUDA OUT OF MEMORY - Reduce batch size, use another model, or close other GPU intensive processes to free up memory", color=Fore.LIGHTRED_EX, force=True)
+                console.print("\n🔴 CUDA OUT OF MEMORY - Reduce batch size, resize images in general settings, use another model, or close other GPU intensive processes to free up memory", color=Fore.LIGHTRED_EX, force=True)
                 console.print("Clearing CUDA cache...", color=Fore.YELLOW, force=True)
                 torch.cuda.empty_cache()
                 console.print("Cache cleared.\n", color=Fore.GREEN, force=True)
                 
                 # Re-raise with GUI-friendly message (no traceback spam)
                 raise RuntimeError(
-                    "CUDA OUT OF MEMORY - Reduce batch size, use another model, or close other GPU intensive processes to free up memory"
+                    "🔴 CUDA OUT OF MEMORY - Reduce batch size, resize images in general settings, use another model, or close other GPU intensive processes to free up memory"
                 ) from None  # from None suppresses the original traceback
             
             # Non-OOM error - show full traceback
@@ -452,7 +543,7 @@ class BaseCaptionModel(ABC):
             console.print("", force=True)
             console.print(f"  Time Taken: {elapsed:.2f}s", color=Fore.CYAN, force=True)
             if peak_vram_gb > 0:
-                console.print(f"  Peak VRAM:  {peak_vram_gb:.2f} GB (System Total)", color=Fore.CYAN, force=True)
+                console.print(f"  Peak VRAM:  {peak_vram_gb:.2f} GB", color=Fore.CYAN, force=True)
             console.print("", force=True)
             
             # Unload model if requested (Moved to finally to ensure cleanup)

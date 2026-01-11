@@ -32,10 +32,51 @@ class ConfigManager:
         self.global_config = self._load_yaml(self.global_config_path)
         self.user_config = self._load_yaml(self.user_config_path)
         
+    
         # Load feature layout presets
         self.feature_layouts_path = self.configs_dir / "feature_layouts.yaml"
         self._feature_layouts = self._load_yaml(self.feature_layouts_path)
-    
+        
+        # Validate model configurations
+        self.validate_model_configs()
+
+    def validate_model_configs(self):
+        """
+        Check all model configs for misconfigurations.
+        Specifically checks if core preprocessing features are listed in the 'features' list.
+        """
+        # Features that should NOT be listed in model 'features' list because they are core/preprocessing
+        # and handled automatically by the base wrapper.
+        CORE_FEATURES_DENYLIST = [
+            "max_width", "max_height", 
+            "batch_size", "max_tokens", 
+            "overwrite", "recursive", "output_format", 
+            "prefix", "suffix", 
+            "print_console", 
+            "image_size" # If user considers this core/preprocessing
+        ]
+        
+        # Only flag max_width/height as explicitly requested, and others that are definitely core
+        # We'll use a safer list based on user's specific complaint + the obvious ones
+        MISCONFIGURED_FEATURES = ["max_width", "max_height", "batch_size"]
+
+        files = list(self.models_dir.glob("*.yaml"))
+        for f in files:
+            try:
+                config = self._load_yaml(f)
+                features_list = config.get('features', [])
+                if not features_list:
+                    continue
+                    
+                misconfigured = [feat for feat in features_list if feat in MISCONFIGURED_FEATURES]
+                
+                if misconfigured:
+                    model_name = config.get('name', f.stem)
+                    # Use print to ensure visibility in console as requested (logging might be filtered)
+                    print(f"⚠️  Configuration Warning: Model '{model_name}' ({f.name}) lists core features in 'features': {', '.join(misconfigured)}. These should be removed.")
+            except Exception as e:
+                logging.error(f"Failed to validate config {f}: {e}")
+
     def get_feature_layout_presets(self) -> Dict[str, List[str]]:
         """Return the presets from feature_layouts.yaml."""
         # RELOAD from disk to support hot-updates
@@ -241,7 +282,7 @@ class ConfigManager:
                      return data
                  
                  # Fallback to first version
-                 # logging.warning(f"Variant '{variant}' not found in version-specific data. Using first available: '{first_key}'")
+                 logging.debug(f"Variant '{variant}' not found in version-specific data. Using first available: '{first_key}'")
                  return data[first_key]
             else:
                  # No variant requested. If it's truly nested, we probably want the first one or default?
@@ -265,17 +306,31 @@ class ConfigManager:
         config = self.get_model_config(model_id)
         defaults = config.get('defaults', {})
         
+        # CRITICAL: Only apply version resolution if model actually supports versions
+        # Check if model has model_versions defined
+        has_versions = 'model_versions' in config and config['model_versions']
+        
+        if not has_versions:
+            # Non-versioned model - return flat defaults as-is, ignore variant parameter
+            return defaults if isinstance(defaults, dict) else {}
+        
         # If no variant specified, try to get it from defaults itself
         if not variant and isinstance(defaults, dict):
-            # Check if defaults has model_version key (flat structure)
+            # For nested defaults, extract from structure
+            # For flat defaults, check if defaults has model_version key
             if 'model_version' in defaults:
                 variant = defaults['model_version']
+            else:
+                # If defaults is nested, get first version
+                first_key = next(iter(defaults), None)
+                if first_key and isinstance(first_key, str) and isinstance(defaults.get(first_key), dict):
+                    variant = first_key
         
         return self._resolve_version_specific(defaults, variant)
     
-    def get_version_instruction_presets(self, model_id: str, variant: Optional[str] = None) -> Dict[str, str]:
+    def get_version_prompt_presets(self, model_id: str, variant: Optional[str] = None) -> Dict[str, str]:
         """
-        Get version-specific instruction presets for a model.
+        Get version-specific prompt presets for a model.
         
         Args:
             model_id: Model identifier
@@ -285,14 +340,60 @@ class ConfigManager:
             Dictionary mapping preset names to prompt strings for the specified version
         """
         config = self.get_model_config(model_id)
-        presets = config.get('instruction_presets', {})
+        presets = config.get('prompt_presets', {})
         
-        # If no variant specified, use default from config
-        if not variant:
-            defaults = self.get_version_defaults(model_id)
-            variant = defaults.get('model_version')
+        # CRITICAL: Only apply version resolution if model actually supports versions
+        has_versions = 'model_versions' in config and config['model_versions']
         
-        return self._resolve_version_specific(presets, variant)
+        resolved_presets = {}
+        
+        if not has_versions:
+             # Non-versioned model - use flat presets as base
+             resolved_presets = presets.copy() if isinstance(presets, dict) else {}
+        else:
+            # If no variant specified, use default from config
+            if not variant:
+                defaults = self.get_version_defaults(model_id)
+                variant = defaults.get('model_version')
+            
+            resolved_presets = self._resolve_version_specific(presets, variant)
+            # Ensure it's a dict (in case _resolve returns None)
+            if not isinstance(resolved_presets, dict):
+                resolved_presets = {}
+
+
+        # Merge User Presets (Global + Model Specific)
+        # Structure of user_prompt_presets in user_config:
+        # List[Dict]: [{"model": "All Models"|"model_id", "name": "Name", "text": "Prompt"}, ...]
+        
+        user_presets_list = self.user_config.get("user_prompt_presets", [])
+        if user_presets_list:
+            # 1. Apply Global Presets (model == "All Models" or empty)
+            for p in user_presets_list:
+                p_model = p.get("model", "")
+                p_name = p.get("name", "")
+                p_text = p.get("text", "")
+                
+                if not p_name or not p_text:
+                    continue
+                    
+                if p_model == "All Models" or not p_model:
+                     resolved_presets[p_name] = p_text
+            
+            # 2. Apply Model Specific Presets (model == model_id)
+            # These overwrite globals and built-ins
+            for p in user_presets_list:
+                p_model = p.get("model", "")
+                p_name = p.get("name", "")
+                p_text = p.get("text", "")
+                
+                if not p_name or not p_text:
+                    continue
+                
+                if p_model == model_id:
+                     resolved_presets[p_name] = p_text
+
+        return resolved_presets
 
     def get_recommended_batch_size(self, model_id: str, vram_gb: int, variant: Optional[str] = None) -> int:
         config = self.get_model_config(model_id)

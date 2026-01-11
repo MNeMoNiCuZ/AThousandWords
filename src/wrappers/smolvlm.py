@@ -83,7 +83,7 @@ class SmolVLMWrapper(BaseCaptionModel):
         self._load_model(version)
         return super().run(dataset, args)
     
-    def _run_inference(self, images: List[Image.Image], prompt: str, args: Dict[str, Any]) -> List[str]:
+    def _run_inference(self, images: List[Image.Image], prompt: List[str], args: Dict[str, Any]) -> List[str]:
         """
         Run SmolVLM inference on a batch of images.
         
@@ -92,15 +92,15 @@ class SmolVLMWrapper(BaseCaptionModel):
         max_tokens = args.get('max_tokens', 500)
         
         # Build messages
-        messages = [
-            {
+        messages = []
+        for img, p in zip(images, prompt):
+            messages.append({
                 "role": "user",
                 "content": [
                     {"type": "image"},
-                    {"type": "text", "text": prompt}
+                    {"type": "text", "text": p}
                 ]
-            } for _ in images
-        ]
+            })
         
         # Inject system prompt
         system_prompt = args.get('system_prompt')

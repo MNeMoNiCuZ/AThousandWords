@@ -50,7 +50,7 @@ from .model.max_word_length import MaximumWordLengthFeature
 from .model.output_json import OutputJsonFeature
 
 # Prompt Features (Model Specific)
-from .model.instruction_templates import InstructionTemplatesFeature
+from .model.prompt_presets import PromptPresetsFeature
 from .model.custom_prompt_sources import (
     PromptSourceFeature,
     PromptFileExtensionFeature,
@@ -102,7 +102,7 @@ FEATURE_REGISTRY = {
     # Prompts
     "task_prompt": TaskPromptFeature(),
     "system_prompt": SystemPromptFeature(),
-    "instruction_template": InstructionTemplatesFeature(),
+    "prompt_presets": PromptPresetsFeature(),
     "prompt_source": PromptSourceFeature(),
     "prompt_file_extension": PromptFileExtensionFeature(),
     "prompt_prefix": PromptPrefixFeature(),

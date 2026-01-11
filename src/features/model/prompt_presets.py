@@ -1,32 +1,29 @@
 """
-Instruction Templates Feature
+Prompt Presets Feature
 
-Predefined prompt templates for different captioning styles.
+Predefined prompt presets for different captioning styles.
 """
 
 from ..base import BaseFeature, FeatureConfig
 from typing import Dict, List
 
 
-class InstructionTemplatesFeature(BaseFeature):
+class PromptPresetsFeature(BaseFeature):
     """
-    Predefined instruction templates for common captioning styles.
+    Predefined prompt presets for common captioning styles.
     """
     
-    # Template definitions - model-agnostic
-    # Template definitions - model-agnostic
-    # NOTE: These are now deprecated and empty.
-    # Templates are defined in model YAML configs under `instruction_presets`.
+    # Templates are defined in model YAML configs under `prompt_presets`.
     TEMPLATES: Dict[str, str] = {}
     
     @property
     def config(self) -> FeatureConfig:
         return FeatureConfig(
-            name="instruction_template",
+            name="prompt_presets",
             default_value="",
-            description="Preset template for instructions",
+            description="Presets for prompts",
             gui_type="dropdown",
-            gui_label="Instruction Template",
+            gui_label="Prompt Presets",
             gui_info="A list of preset prompts",
             gui_choices=[],  # Populated dynamically
             include_in_cli=False  # GUI preset selector only, actual prompts are included

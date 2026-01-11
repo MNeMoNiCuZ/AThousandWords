@@ -1,46 +1,54 @@
+# Metadata
 name: "Moondream 2"
 id: "moondream2"
 wrapper_path: "src.wrappers.moondream2.Moondream2Wrapper"
-model_path: "vikhyat/moondream2"
-description: "Lightweight, fast vision-language model with captioning and visual query support."
+tags: false
+natural_language: true
+model_path: "vikhyatk/moondream2"
+description: "Small 2B parameter model, supports Query Mode to ask a question about the image instead of getting a captioning-like response. <b>Batch size has no effect</b>"
 media_type:
   - "Image"
-caption_speed: 4
+caption_speed: 0.6
+licence: "Apache 2.0"
+licence-url: "https://choosealicense.com/licenses/apache-2.0/"
 
-# Moondream2 processes images sequentially - batch_size has no effect
-hide_batch_size: true
+# Model processes images sequentially - batch_size has no effect
+# hide_batch_size: true
+# Showing batch size anyway as it's still an indicator for minimum batch size.
 
-# Model-specific features
+# Supported features
 features:
   - model_mode
   - task_prompt
   - prompt_source
-  - instruction_template
+  - prompt_presets
 
+# Model Modes
 model_modes:
   - Caption
   - Query
 
+# Defaults
 defaults:
   max_tokens: 512
   model_mode: "Caption"
-  task_prompt: "Describe this image in detail."
-  prompt_source: "Instruction Template"
-  instruction_template: "Detailed"
+  prompt_source: "Prompt Presets"
+  prompt_presets: "Detailed Caption"
 
-instruction_presets:
-  Brief: "Describe briefly."
-  Detailed: "Describe this image in detail."
+# Prompt Presets
+prompt_presets:
+  Brief Caption: "Describe briefly."
+  Detailed Caption: "Describe this image in detail."
   Analysis: "Analyze the visual elements and their relationships."
-  Count: "How many objects are in this image?"
+  Count: "How many [THING] are in this image?"
 
+# VRAM recommendations
 vram_table:
   8: 1
 
 # Feature layout
 feature_rows:
-  - [model_mode]  # Mode selection
-  - preset: prompt_control
-  - preset: instruction_fields
+  - preset: mode_prompt_control
+  - preset: prompt_input
   - preset: file_metadata
 

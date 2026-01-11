@@ -24,7 +24,7 @@ class StripContentsInsideFeature(BaseFeature):
             description="Strip content inside configured brackets (e.g. (), [], {})",
             gui_type="checkbox",
             gui_label="Strip Brackets Content",
-            gui_info="Removes text inside brackets. Configure types in model config."
+            gui_info="Removes text inside brackets."
         )
     
     @classmethod

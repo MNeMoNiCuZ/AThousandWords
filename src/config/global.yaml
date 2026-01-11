@@ -1,28 +1,28 @@
 # Global Defaults - THE SINGLE SOURCE OF TRUTH
 # All settings values are defined here. User overrides are stored in user_data/user_config.yaml.
 
-# --- Model Display Order ---
+# --- Default Model Display Order ---
 # Controls the order models appear in dropdowns and settings.
 # Models not listed here will appear at the end in alphabetical order.
 model_order:
-  - florence2
-  - joycaption
+  - wd14
   - joytag
+  - joycaption  
+  - florence2
   - miaoshouai
   - mimovl
+  - qwenvl2.7b
+  - qwen2-vl-7b-captioner-relaxed
+  - qwen3_vl
   - moondream1
   - moondream2
   - moondream3
   - paligemma2
   - paligemma_longprompt
   - pixtral_12b
-  - qwen2-vl-7b-captioner-relaxed
-  - qwen3_vl
-  - qwenvl2.7b
   - smolVLM
   - smolVLM2
   - ToriiGate
-  - wd14
 
 # --- Output Settings ---
 output_dir: ""
@@ -57,3 +57,4 @@ default_batch_size: 1
 # --- UI Settings ---
 gallery_columns: 6
 gallery_rows: 2
+gallery_items_per_page: 50

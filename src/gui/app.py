@@ -339,97 +339,141 @@ class CaptioningApp:
         # 2. Save model-specific features using DIFFING (only save non-default values)
         if current_mod_id and isinstance(current_mod_id, str):
             # Get effective defaults for this model (Global Defaults + Base Model Config + Version Overrides)
-            # This ensures we diff against the ACTUAL defaults for the selected version
-            model_defaults = self.config_mgr.get_version_defaults(current_mod_id, model_ver)
+            # CRITICAL FIX: Use get_model_defaults() to get CLEAN defaults (without user saved overrides)
+            # This ensures we diff against the YAML defaults, not the user's previously saved values!
+            clean_config = self.config_mgr.get_model_defaults(current_mod_id)
+            clean_defaults_raw = clean_config.get('defaults', {})
+            
+            # Resolve version-specific defaults from the clean config
+            # We use the internal helper to ensure consistent logic
+            model_defaults = self.config_mgr._resolve_version_specific(clean_defaults_raw, model_ver)
             
             # Get model config to check which features are supported
             model_config = self.config_mgr.get_model_config(current_mod_id)
             supported_features = set(model_config.get('features', []))
             
+            # VALIDATION: Check if model supports versions
+            model_versions = model_config.get('model_versions', {})
+            model_supports_versions = bool(model_versions)
+            valid_versions = list(model_versions.keys()) if model_supports_versions else []
+            
+            # Validate model_ver BEFORE using it
+            if model_ver:
+                if not model_supports_versions:
+                    # Model doesn't support versions - clear the value and warn
+                    logging.warning(f"Cannot save model_version '{model_ver}' for '{current_mod_id}' - model does not support versions")
+                    gr.Warning(f"Model '{current_mod_id}' does not support versions. Version setting ignored.")
+                    model_ver = None  # Clear it
+                elif model_ver not in valid_versions:
+                    # Invalid version for this model
+                    logging.warning(f"Cannot save invalid model_version '{model_ver}' for '{current_mod_id}'. Valid: {valid_versions}")
+                    gr.Warning(f"Invalid version '{model_ver}' for model '{current_mod_id}'. Valid versions: {', '.join(valid_versions)}")
+                    model_ver = None  # Clear it
+            
             # Prepare full settings dict (Static + Dynamic)
             # Start with static inputs passed explicitly
             all_feature_values = {
-                'model_version': model_ver,
                 'batch_size': batch_sz,
                 'max_tokens': max_tok
             }
+            
+            # Only add model_version if it's valid
+            if model_ver:
+                all_feature_values['model_version'] = model_ver
             
             # Update with dynamic features from state
             if settings_state:
                 all_feature_values.update(settings_state)
             
-            # Special Handling: Instruction Template "Custom" Logic
-            # If instruction_template is present but NOT "Custom", do NOT save task_prompt.
+            # Special Handling: Prompt Presets "Custom" Logic
+            # If prompt_presets is present but NOT "Custom", do NOT save task_prompt.
             # This allows the system to resolve the task_prompt from the preset on load.
-            if 'instruction_template' in all_feature_values:
-                if all_feature_values['instruction_template'] != "Custom":
+            if 'prompt_presets' in all_feature_values:
+                if all_feature_values['prompt_presets'] != "Custom":
                     if 'task_prompt' in all_feature_values:
                         del all_feature_values['task_prompt']
             
             # Universal features are always candidates for saving
-            UNIVERSAL_FEATURES = {'batch_size', 'max_tokens'}
-            
-            model_settings_diff = {}
-            for feature_name, value in all_feature_values.items():
-                if feature_name in supported_features or feature_name in UNIVERSAL_FEATURES or feature_name == 'model_version':
-                    # Get the default value for this feature
-                    default_value = model_defaults.get(feature_name)
-                    
-                    # If default is not in model config, check if it has a global feature default
-                    if default_value is None:
-                        feature = feature_registry.get_feature(feature_name)
-                        if feature:
-                            default_value = feature.get_default()
-                    
-                    # Diff check: Only save if value is DIFFERENT from default
-                    # For Custom template, we always want to save task_prompt if it differs from default (which is likely)
-                    if value != default_value:
-                        model_settings_diff[feature_name] = value
+            UNIVERSAL_FEATURES = {'batch_size', 'max_tokens', 'custom_task_prompt'}
             
             # Update user_config with the diff
             if 'model_settings' not in self.config_mgr.user_config:
                 self.config_mgr.user_config['model_settings'] = {}
             
-            # Get existing root to preserve other versions if they exist
+            # Get existing root to preserve other versions and existing data if they exist
             existing_root = self.config_mgr.user_config['model_settings'].get(current_mod_id, {})
             
             if model_ver:
                 # Versioned Model: Enforce strict clean structure (model_version + versions ONLY)
-                # This removes any stale flat keys (like batch_size) that might exist at the root
                 existing_versions = existing_root.get('versions', {})
                 
-                # Create CLEAN root
+                # Create CLEAN root structure
                 new_root = {
                     'model_version': model_ver,
                     'versions': existing_versions
                 }
                 
-                # Check for diff
-                diff_to_save = model_settings_diff.copy()
-                if 'model_version' in diff_to_save:
-                    del diff_to_save['model_version']
+                # Get OR Create the version dictionary to MERGE into
+                if model_ver not in new_root['versions']:
+                     new_root['versions'][model_ver] = {}
                 
-                if diff_to_save:
-                    new_root['versions'][model_ver] = diff_to_save
-                    logger.info(f"Saved overrides for {current_mod_id} [{model_ver}]: {diff_to_save}")
-                else:
-                    # If empty diff, remove this version entry
-                    if model_ver in new_root['versions']:
-                        del new_root['versions'][model_ver]
-                    logger.info(f"No overrides for {current_mod_id} [{model_ver}] - cleaned up version entry")
+                target_dict = new_root['versions'][model_ver]
                 
+                logger.info(f"Saving Versioned Model: {current_mod_id} [{model_ver}]")
+                logger.info(f"Active Features: {list(all_feature_values.keys())}")
+                
+                # MERGE STRATEGY: Update target_dict with active values, remove defaults
+                # We iterate through all_feature_values (ACTIVE keys)
+                # Keys NOT in all_feature_values are left untouched in target_dict (Preserved)
+                for feature_name, value in all_feature_values.items():
+                    if feature_name in supported_features or feature_name in UNIVERSAL_FEATURES or feature_name == 'model_version':
+                        # Get default
+                        default_val = model_defaults.get(feature_name)
+                        if default_val is None:
+                            feature = feature_registry.get_feature(feature_name)
+                            if feature: default_val = feature.get_default()
+                        
+                        # Update or Remove
+                        if value != default_val:
+                            # Setting is non-default -> Update/Add
+                            # Only log if it's a change or new
+                            if target_dict.get(feature_name) != value:
+                                logger.info(f"  Setting {feature_name}: {value} (Default: {default_val})")
+                            target_dict[feature_name] = value
+                        else:
+                            # Setting matches default -> Remove
+                            if feature_name in target_dict:
+                                logger.info(f"  Resetting {feature_name} to default (Removing from saved)")
+                                target_dict.pop(feature_name)
+                                
                 # Apply new root
                 self.config_mgr.user_config['model_settings'][current_mod_id] = new_root
                 
             else:
-                # Flat Model: Save directly
-                if model_settings_diff:
-                    self.config_mgr.user_config['model_settings'][current_mod_id] = model_settings_diff
-                    logger.info(f"Saved overrides for {current_mod_id}: {model_settings_diff}")
-                else:
-                    if current_mod_id in self.config_mgr.user_config['model_settings']:
-                        del self.config_mgr.user_config['model_settings'][current_mod_id]
-                    logger.info(f"No overrides for {current_mod_id} - removed from user config")
+                # Flat Model: Save directly merge
+                # Ensure root dict exists and uses existing one
+                if current_mod_id not in self.config_mgr.user_config['model_settings']:
+                    self.config_mgr.user_config['model_settings'][current_mod_id] = {}
+                    
+                target_dict = self.config_mgr.user_config['model_settings'][current_mod_id]
+                
+                logger.info(f"Saving Flat Model: {current_mod_id}")
+                
+                 # MERGE STRATEGY: Update target_dict
+                for feature_name, value in all_feature_values.items():
+                    if feature_name in supported_features or feature_name in UNIVERSAL_FEATURES or feature_name == 'model_version':
+                        # Get default
+                        default_val = model_defaults.get(feature_name)
+                        if default_val is None:
+                            feature = feature_registry.get_feature(feature_name)
+                            if feature: default_val = feature.get_default()
+                            
+                        # Update or Remove
+                        if value != default_val:
+                            target_dict[feature_name] = value
+                        else:
+                            if feature_name in target_dict:
+                                target_dict.pop(feature_name)
         
         # Filter to only save user overrides (values different from defaults)
         filtered_config = filter_user_overrides(self.config_mgr.user_config)
@@ -446,12 +490,13 @@ class CaptioningApp:
         self.refresh_models()
         self.gallery_columns = int(gal_cols)
         self.gallery_rows = int(gal_rows)
+        self.gallery_items_per_page = int(items_per_page) if items_per_page else 50
         
-        logger.info("Settings saved successfully.")
+
         gr.Info("Settings saved successfully!")
         return []
     
-    def save_settings_simple(self, vram, models_checked, gal_cols, gal_rows, unload, model_order_text, items_per_page):
+    def save_settings_simple(self, vram, system_ram, models_checked, gal_cols, gal_rows, unload, model_order_text, items_per_page):
         """Save settings from the Settings tab (simplified version)."""
         
         # Parse model_order from textbox
@@ -468,6 +513,7 @@ class CaptioningApp:
         
         self.config_mgr.user_config.update({
             'gpu_vram': vram,
+            'system_ram': system_ram,  # Add System RAM
             'gallery_columns': gal_cols,
             'gallery_rows': gal_rows,
             'gallery_items_per_page': int(items_per_page) if items_per_page else 50,
@@ -475,6 +521,11 @@ class CaptioningApp:
             'unload_model': unload,
             'model_order': valid_model_order  # NEW: Save model order
         })
+        
+        # Update instance variables
+        self.gallery_columns = int(gal_cols)
+        self.gallery_rows = int(gal_rows)
+        self.gallery_items_per_page = int(items_per_page) if items_per_page else 50
         
         # Filter and save
         filtered_config = filter_user_overrides(self.config_mgr.user_config)
@@ -503,7 +554,7 @@ class CaptioningApp:
             is_visible = model_id in self.enabled_models
             multi_updates.append(gr.update(visible=is_visible))
             
-        logger.info("Settings saved from Settings tab.")
+
         
         if gal_rows == 0:
             gr.Info("💡 Gallery hidden - refresh the page (F5) to apply")
@@ -524,13 +575,143 @@ class CaptioningApp:
         if user_config_path.exists():
             try:
                 os.remove(user_config_path)
-                logger.info("User config deleted. Reset to defaults.")
-                return True, "Settings have been reset to defaults. Please refresh the page."
+
+                return True, "Settings reset to defaults. Please refresh the page manually."
             except Exception as e:
                 logger.error(f"Failed to delete user config: {e}")
                 return False, f"Error: Failed to reset settings - {e}"
         else:
             return True, "No custom settings found. Already using defaults."
+
+            return True, "No custom settings found. Already using defaults."
+
+    # =========================================================================
+    # USER PRESETS LIBRARY
+    # =========================================================================
+
+    def get_preset_eligible_models(self):
+        """
+        Return list of models that support custom prompts (eligible for presets).
+        Logic mirrors model_info.py 'complex_prompt' check.
+        """
+        eligible = []
+        for model_id in self.models:
+            config = self.config_mgr.get_model_config(model_id)
+            features = config.get('features', [])
+            
+            # Must have task_prompt feature AND (supports_custom_prompts != False)
+            has_feature = 'task_prompt' in features
+            explicitly_disabled = config.get('supports_custom_prompts', True) is False
+            
+            if has_feature and not explicitly_disabled:
+                eligible.append(model_id)
+        return eligible
+
+    def get_user_presets_dataframe(self):
+        """
+        Get user presets formatted for the Settings Dataframe.
+        Columns: [Model, Preset Name, Prompt Text, Delete]
+        """
+        presets = self.config_mgr.user_config.get("user_prompt_presets", [])
+        
+        # Sort Logic:
+        # 1. Group by Model Order (User customized order)
+        # 2. "All Models" at top
+        # 3. Sort by Name within model
+        
+        # Helper for sort key
+        model_order = self.config_mgr.user_config.get('model_order', self.models)
+        
+        def sort_key(p):
+            p_model = p.get('model', 'All Models') or 'All Models'
+            p_name = p.get('name', '')
+            
+            if p_model == 'All Models':
+                m_idx = -1
+            else:
+                try:
+                    m_idx = model_order.index(p_model)
+                except ValueError:
+                    m_idx = 9999 # Unknown models at end
+            
+            return (m_idx, p_name)
+
+        sorted_presets = sorted(presets, key=sort_key)
+        
+        # Convert to List of Lists for Dataframe
+        data = []
+        for p in sorted_presets:
+            p_model = p.get('model', 'All Models') or 'All Models'
+            # Add "Delete" column with trash icon
+            data.append([p_model, p.get('name', ''), p.get('text', ''), "🗑️"])
+            
+        return data
+
+    def save_user_preset(self, model_scope, name, text):
+        """
+        Save (Upsert) a user preset.
+        """
+        if not name or not text:
+             gr.Warning("Preset Name and Text are required.")
+             return self.get_user_presets_dataframe(), gr.update(choices=["All Models"] + self.get_preset_eligible_models())
+             
+        # Normalize model scope
+        if model_scope == "All Models":
+            model_scope = "All Models"
+            
+        # Get current list
+        presets = self.config_mgr.user_config.get("user_prompt_presets", [])
+        
+        # Remove existing if exists (Update)
+        # Identify by (model, name)
+        # Safe normalize p.get('model') to 'All Models' if None/Empty for comparison
+        presets = [
+            p for p in presets 
+            if not ( (p.get('model') or 'All Models') == model_scope and p.get('name') == name )
+        ]
+        
+        # Add new
+        presets.append({
+            "model": model_scope,
+            "name": name,
+            "text": text
+        })
+        
+        # Save
+        self.config_mgr.user_config["user_prompt_presets"] = presets
+        self.config_mgr.save_user_config()
+        
+        gr.Info(f"Saved preset '{name}' for {model_scope}")
+        
+        # Return updated dataframe and ensuring choices are fresh
+        return self.get_user_presets_dataframe(), gr.update(choices=["All Models"] + self.get_preset_eligible_models())
+
+    def delete_user_preset(self, model_scope, name):
+        """
+        Delete a user preset.
+        """
+        if not name:
+            gr.Warning("Select a preset to delete.")
+            return self.get_user_presets_dataframe()
+            
+        presets = self.config_mgr.user_config.get("user_prompt_presets", [])
+        
+        # Remove
+        new_presets = [
+            p for p in presets 
+            if not ( (p.get('model') or 'All Models') == model_scope and p.get('name') == name )
+        ]
+        
+        if len(new_presets) == len(presets):
+             gr.Warning(f"Preset '{name}' not found.")
+             return self.get_user_presets_dataframe()
+             
+        self.config_mgr.user_config["user_prompt_presets"] = new_presets
+        self.config_mgr.save_user_config()
+        
+        gr.Info(f"Deleted preset '{name}'")
+        return self.get_user_presets_dataframe()
+
 
     def load_settings(self):
         """Force re-read user config from disk and return values for UI components."""
@@ -558,6 +739,16 @@ class CaptioningApp:
         
         # 6. Return values for all bound components
         # Order must match demo.load outputs in main.py
+        
+        # Safe Preset Loading
+        try:
+             presets_data = self.get_user_presets_dataframe()
+             presets_choices = ["All Models"] + self.get_preset_eligible_models()
+        except Exception as e:
+             logger.error(f"Error loading presets: {e}")
+             presets_data = []
+             presets_choices = ["All Models"]
+
         return [
             # System
             cfg['gpu_vram'], 
@@ -604,7 +795,7 @@ class CaptioningApp:
         to ensure stable paths for processing.
         """
         if not file_objs:
-            return self._get_gallery_data(), None
+            return self._get_gallery_data(), None, 1, self.get_total_label(), self._get_pagination_vis()
         
         import shutil
         import uuid
@@ -658,7 +849,7 @@ class CaptioningApp:
                 logger.error(f"Failed to persist file {temp_path}: {e}")
         
         if not persistent_files:
-            return self._get_gallery_data(), None
+            return self._get_gallery_data(), None, 1, self.get_total_label(), self._get_pagination_vis()
 
         # Load new persistent files (not the temp ones)
         new_dataset = DataLoader.scan_directory(persistent_files)
@@ -807,6 +998,9 @@ class CaptioningApp:
             
             # Add video emoji indicator to caption for videos
             if media.is_video():
+                thumb_path = media.get_thumbnail_path()
+                if thumb_path:
+                    image_path = thumb_path
                 caption = f"🎬 {caption}"
             
             gallery_data.append((image_path, caption))
@@ -840,8 +1034,8 @@ class CaptioningApp:
                 return (
                     gr.update(visible=True),  # inspector_group
                     gr.update(selected="vid_tab"),  # insp_tabs (select video tab by ID)
-                    None,  # insp_img
-                    str(media_obj.path),  # insp_video
+                    gr.update(value=None, visible=False),  # insp_img (Use update to force hide)
+                    gr.update(value=str(media_obj.path), visible=True),  # insp_video
                     media_obj.caption  # insp_cap
                 )
             else:
@@ -849,8 +1043,8 @@ class CaptioningApp:
                 return (
                     gr.update(visible=True),  # inspector_group
                     gr.update(selected="img_tab"),  # insp_tabs (select image tab by ID)
-                    str(media_obj.path),  # insp_img
-                    None,  # insp_video
+                    gr.update(value=str(media_obj.path), visible=True),  # insp_img
+                    gr.update(value=None, visible=False),  # insp_video
                     media_obj.caption  # insp_cap
                 )
         
@@ -866,7 +1060,7 @@ class CaptioningApp:
         """Remove currently selected image from dataset (not from disk)."""
         if self.selected_index is not None and 0 <= self.selected_index < len(self.dataset.images):
             removed = self.dataset.images.pop(self.selected_index)
-            logger.info(f"Removed {removed.path.name} from gallery (file still exists on disk)")
+
             self.selected_index = None
             self.selected_path = None
             return self._get_gallery_data(), gr.update(visible=False), self.current_page, self.get_total_label(), self._get_pagination_vis()
@@ -896,18 +1090,38 @@ class CaptioningApp:
         self.dataset = Dataset()
         self.selected_path = None
         self.current_page = 1
-        logger.info("Dataset gallery cleared.")
+
         return [], gr.update(visible=False), 1, self.get_total_label(), self._get_pagination_vis()
 
     # --- Tools ---
-    def run_metadata(self, src, upd):
+    def run_metadata(self, src, upd, pre, suf, clean, collapse, norm, out_dir, ext):
         """Run metadata extraction tool."""
-        MetadataTool().apply_to_dataset(self.dataset, src, upd)
+        print(f"--- Starting Metadata Extraction ---")
+        print(f"Source: {src}, Overwrite: {upd}")
+        print(f"Output: {out_dir if out_dir else 'In-place'}, Extension: {ext}")
+        
+        result = MetadataTool().apply_to_dataset(self.dataset, src, upd, 
+                                      prefix=pre, suffix=suf,
+                                      clean=clean, collapse=collapse, normalize=norm,
+                                      output_dir=out_dir, extension=ext)
+        print(f"Result: {result}")
+        print("--- Metadata Extraction Complete ---")
+        gr.Info(result)
         return self._get_gallery_data()
 
-    def run_resize(self, dim):
+    def run_resize(self, dim, out_dir, pre, suf, ext, overwrite):
         """Run resize tool."""
-        ResizeTool.apply_to_dataset(self.dataset, int(dim))
+        print(f"--- Starting Image Resize ---")
+        print(f"Max Dimension: {dim}px")
+        print(f"Output: {out_dir if out_dir else 'In-place'}, Overwrite: {overwrite}")
+        print(f"Name format: {pre}[name]{suf}{ext}")
+        
+        result = ResizeTool.apply_to_dataset(self.dataset, int(dim), 
+                                           output_dir=out_dir, prefix=pre, suffix=suf, 
+                                           extension=ext, overwrite=overwrite)
+        print(f"Result: {result}")
+        print("--- Resize Complete ---")
+        gr.Info(result)
         return self._get_gallery_data()
 
     def update_model_ui(self, mod_id):
@@ -929,8 +1143,8 @@ class CaptioningApp:
         recommendation_list = "\n".join([f"- {k}GB: Batch {v}" for k, v in recs.items()])
         info_tooltip = f"Number of images to process in parallel.\nVRAM recommendations for this model:\n{recommendation_list}"
 
-        # Helper for instruction presets
-        presets = cfg.get("instruction_presets", {})
+        # Helper for prompt presets
+        presets = cfg.get("prompt_presets", {})
         preset_keys = list(presets.keys()) if presets else []
         
         # Handle strip_thinking_tags visibility
@@ -938,7 +1152,7 @@ class CaptioningApp:
         
         
         # Robustly resolve default template
-        default_template = defs.get("instruction_template")
+        default_template = defs.get("prompt_presets")
         if default_template and default_template not in preset_keys:
             print(f"Warning: Default template '{default_template}' not found in presets for {mod_id}. Using first available.")
             default_template = None
@@ -960,11 +1174,11 @@ class CaptioningApp:
         ]
 
     def apply_preset(self, mod_id, preset_name):
-        """Apply an instruction preset."""
+        """Apply a prompt preset."""
         if not mod_id or not preset_name:
             return gr.update()
         cfg = self.config_mgr.get_model_config(mod_id)
-        presets = cfg.get("instruction_presets", {})
+        presets = cfg.get("prompt_presets", {})
         if preset_name in presets:
             return gr.update(value=presets[preset_name])
         return gr.update()
@@ -975,7 +1189,7 @@ class CaptioningApp:
             config_key = UI_CONFIG_MAP[key]
             self.config_mgr.user_config[config_key] = value
             self.config_mgr._save_yaml(self.config_mgr.user_config_path, self.config_mgr.user_config)
-            logger.info(f"Auto-saved: {config_key} = {value}")
+
 
     def save_model_defaults(self, mod_id, t, k, mt, rp):
         """Saves current generation settings as user defaults for the model."""
@@ -1020,24 +1234,49 @@ class CaptioningApp:
         from src.features import get_all_features, FEATURE_REGISTRY
         
         model_config = self.config_mgr.get_model_config(mod)
-        model_feature_names = set(model_config.get("features", []))
+        # Extract feature names safely (features can be strings or dicts)
+        features_list = model_config.get("features", [])
+        model_feature_names = set()
+        for f in features_list:
+            if isinstance(f, dict):
+                model_feature_names.add(f['name'])
+            else:
+                model_feature_names.add(f)
         
         # Get all features and filter to those relevant for this model
         all_feature_instances = get_all_features()
         
-        # Global features are always included (universal features + output/processing features)
+        # Define GLOBAL features: universal features that apply to ALL or MOST models
+        # These are always considered, even if not in the model's YAML features list
         global_feature_names = {
-            # Universal features (always present for all models)
+            # Core Universal (every model)
             "batch_size", "max_tokens",
-            # Output and processing features
-            "recursive", "overwrite", "clean_text", "collapse_newlines", 
-            "normalize_text", "remove_chinese", 
-            "print_console", "max_width", "max_height", "output_json",
-            "output_format", "prefix", "suffix", "strip_loop", "print_status",
-            "unload_model"
+            
+            # Output Control (universal)
+            "overwrite", "recursive", "output_format", "output_json",
+            "prefix", "suffix",
+            
+            # Text Processing (universal)
+            "clean_text", "collapse_newlines", "normalize_text", 
+            "remove_chinese", "strip_loop",
+            
+            # Image Processing (universal)
+            "max_width", "max_height",
+            
+            # Console/Logging (universal)
+            "print_console", "print_status",
+            
+            # System Control (universal)
+            "unload_model",
+            
+            # Prompt Features (very common, used by most VLM models)
+            # These are critical and should be included for compatibility
+            "task_prompt", "system_prompt", "prompt_presets",
+            "prompt_source", "prompt_file_extension", 
+            "prompt_prefix", "prompt_suffix"
         }
         
-        # Collect features: global features + model-specific features
+        # Collect features: ONLY those in global list OR model's feature list
         relevant_features = {}
         for name, feature in all_feature_instances.items():
             if name in global_feature_names or name in model_feature_names:
@@ -1057,18 +1296,15 @@ class CaptioningApp:
                 continue
             
             # Get prompt_source to determine which prompt-related features to include
-            prompt_source = args.get('prompt_source', 'Instruction Template')
+            prompt_source = args.get('prompt_source', 'Instruction Presets')
             
             # Skip prompt_file_extension, prompt_prefix, prompt_suffix if not using "From File" or "From Metadata"
             if name in ['prompt_file_extension', 'prompt_prefix', 'prompt_suffix']:
-                if prompt_source == 'Instruction Template':
+                if prompt_source == 'Instruction Presets':
                     continue  # These are only relevant for "From File" and "From Metadata" modes
             
-            # Skip task_prompt and system_prompt if using "From File" or "From Metadata"
-            # (the actual prompts come from files/metadata, not from these settings)
-            if name in ['task_prompt', 'system_prompt']:
-                if prompt_source != 'Instruction Template':
-                    continue  # These are only relevant for "Instruction Template" mode
+            # task_prompt and system_prompt are always included as fallbacks/instructions
+            # No filtering needed.
                 
             value = args.get(name, feature.get_default())
             
@@ -1086,8 +1322,11 @@ class CaptioningApp:
                     cli_args.append(f"--{name.replace('_', '-')}")
             elif isinstance(value, (int, float)):
                 cli_args.append(f"--{name.replace('_', '-')} {value}")
-            elif isinstance(value, str) and value:  # Only add if non-empty
-                cli_args.append(f"--{name.replace('_', '-')} \"{value}\"")
+            elif isinstance(value, str):
+                # When skip_defaults=False, include all strings (even empty) for completeness
+                # When skip_defaults=True, only include non-empty strings
+                if not skip_defaults or value:
+                    cli_args.append(f"--{name.replace('_', '-')} \"{value}\"")
         
         return f"python captioner.py {' '.join(cli_args)}"
     
@@ -1199,7 +1438,7 @@ class CaptioningApp:
             # Catch OOM RuntimeError from wrapper without re-raising
             if "out of memory" in str(e).lower() or "vram" in str(e).lower():
                 # OOM error - show warning popup (no traceback)
-                gr.Warning("🔴 CUDA OUT OF MEMORY - Reduce batch size, use another model, or close other GPU intensive processes to free up memory")
+                gr.Warning("🔴 CUDA OUT OF MEMORY - Reduce batch size, resize images in general settings, use another model, or close other GPU intensive processes to free up memory")
                 return self._get_gallery_data(), gr.update(visible=False), {}
             else:
                 # Other RuntimeError - re-raise with traceback
@@ -1281,7 +1520,7 @@ class CaptioningApp:
         filtered_config = filter_user_overrides(self.config_mgr.user_config)
         self.config_mgr._save_yaml(self.config_mgr.user_config_path, filtered_config)
         
-        logger.info(f"Multi-model settings saved. Enabled: {len(enabled)}, Custom Formats: {len(format_dict)}")
+
         gr.Info("Multi-model settings saved!")
         return []
     
@@ -1357,9 +1596,12 @@ class CaptioningApp:
         import time
         
         # Parse inputs
+        # Last argument is limit_count
+        limit_count = inputs[-1]
+        
         num_models = len(self.models)
         checkboxes = inputs[:num_models]
-        formats = inputs[num_models:]
+        formats = inputs[num_models:-1] # Everything else except last item
         
         enabled_models = [self.models[i] for i in range(num_models) if checkboxes[i]]
         
@@ -1372,7 +1614,6 @@ class CaptioningApp:
             gr.Warning("No images loaded!")
             gallery_data = self._get_gallery_data()
             return gallery_data
-        
         # Get current global settings
         settings = self.config_mgr.get_global_settings()
         
@@ -1390,7 +1631,8 @@ class CaptioningApp:
                 **settings,
                 'output_format': formats[self.models.index(model_id)],
                 'overwrite': settings['overwrite'],
-                'print_console': settings['print_console']
+                'print_console': settings['print_console'],
+                'limit_count': limit_count # Pass runtime limit to inference
             }
             
             print(f"\n{Fore.MAGENTA}{'='*60}{Style.RESET_ALL}")

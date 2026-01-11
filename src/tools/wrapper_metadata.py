@@ -10,13 +10,30 @@ class MetadataTool:
     def __init__(self):
         pass
 
-    def apply_to_dataset(self, dataset, source_type: str = "all", update_caption: bool = True):
+    def apply_to_dataset(self, dataset, source_type: str = "all", update_caption: bool = True,
+                         prefix: str = "", suffix: str = "", 
+                         clean: bool = False, collapse: bool = False, normalize: bool = False,
+                         output_dir: str = None, extension: str = ".txt"):
         """
         Iterates through the dataset and extracts metadata.
         source_type: 'png_info', 'exif', or 'all'
         update_caption: If True, sets the image caption to the extracted 'positive_prompt'.
+        output_dir: Optional path to save captions to.
+        extension: File extension for saved captions.
         """
+        # Import core feature logic to avoid code duplication
+        from src.features.core.text_cleanup import CleanTextFeature, CollapseNewlinesFeature
+        from src.features.core.normalize_text import NormalizeTextFeature
+        from pathlib import Path
+        
         count = 0
+        saved_count = 0
+        
+        # Prepare output directory if specified
+        out_path_obj = Path(output_dir) if output_dir else None
+        if out_path_obj and not out_path_obj.exists():
+            out_path_obj.mkdir(parents=True, exist_ok=True)
+
         for img_obj in dataset.images:
             try:
                 meta = self._extract_metadata_from_file(str(img_obj.path))
@@ -25,14 +42,37 @@ class MetadataTool:
                 
                 # Check for prompts
                 pos_prompt = meta.get("positive_prompt", "")
-                if pos_prompt and update_caption:
-                    img_obj.update_caption(pos_prompt)
+                if pos_prompt:
+                    # Apply Text Cleaning
+                    if normalize:
+                        pos_prompt = NormalizeTextFeature.apply(pos_prompt)
+                    if collapse:
+                        pos_prompt = CollapseNewlinesFeature.apply(pos_prompt)
+                    if clean:
+                        pos_prompt = CleanTextFeature.apply(pos_prompt)
+                        
+                    # Apply Prefix/Suffix
+                    if prefix:
+                        pos_prompt = f"{prefix}{pos_prompt}"
+                    if suffix:
+                        pos_prompt = f"{pos_prompt}{suffix}"
+                    
+                    if update_caption:
+                        img_obj.update_caption(pos_prompt)
+                        # Ensure extension starts with dot
+                        if extension and not extension.startswith('.'):
+                            extension = '.' + extension
+                            
+                        # Save to disk
+                        img_obj.save_caption(extension=extension, output_dir=out_path_obj)
+                        saved_count += 1
+                        
                     count += 1
             except Exception as e:
                 logging.error(f"Error extracting metadata from {img_obj.path}: {e}")
                 img_obj.error = f"Metadata error: {e}"
         
-        return f"Processed {len(dataset)} images. Updated {count} captions."
+        return f"Processed {len(dataset)} images. Found metadata for {count}. Saved {saved_count} captions."
 
     def _parse_png_parameters(self, metadata: Dict[str, Any]) -> Dict[str, Any]:
         parsed_data = {"positive_prompt": "", "negative_prompt": "", "parsed_params": {}}

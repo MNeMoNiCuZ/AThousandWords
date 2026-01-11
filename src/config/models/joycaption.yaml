@@ -1,13 +1,18 @@
+# Metadata
 name: "JoyCaption"
 id: "joycaption"
 wrapper_path: "src.wrappers.joycaption.JoyCaptionWrapper"
+tags: false
+natural_language: true
 model_path: "fancyfeast/llama-joycaption-alpha-two-hf-llava"
-description: "Advanced LLaVA-based captioning with flexible prompting. Supports Alpha-Two and Beta-One versions."
+description: "Powerful model that excels at custom instructions. Supports Alpha-Two and Beta-One versions. Supports NSFW."
 media_type:
   - "Image"
-caption_speed: 4
+caption_speed: 1
+licence: "Unknown"
+licence-url: "https://huggingface.co/fancyfeast/llama-joycaption-alpha-two-hf-llava"
 
-# Supported features from features/ module
+# Supported features
 features:
   - model_version
   - image_size
@@ -15,14 +20,14 @@ features:
   - top_k
   - repetition_penalty
   - task_prompt
-  - instruction_template
+  - prompt_presets
   - prompt_source
   - prompt_prefix
   - prompt_suffix
   - prompt_file_extension
   - system_prompt
 
-# Version-specific defaults (ConfigManager resolves based on model_version)
+# Defaults
 defaults:
   "Alpha-Two":
     model_version: "Alpha-Two"
@@ -30,28 +35,26 @@ defaults:
     temperature: 0.5
     top_k: 10
     max_tokens: 300
-    task_prompt: "Please provide a detailed description of the image."
-    instruction_template: "Detailed Descriptive"
-    prompt_source: "Instruction Template"
+    prompt_presets: "Detailed Descriptive"
+    prompt_source: "Prompt Presets"
     system_prompt: "You are a helpful image captioner."
   "Beta-One":
     model_version: "Beta-One"
-    image_size: 384  # Beta-One uses AutoProcessor but keeping for consistency
+    image_size: 384
     temperature: 0.6
     top_k: 10
     max_tokens: 512
-    task_prompt: "Write a detailed description for this image."
-    instruction_template: "Descriptive"
-    prompt_source: "Instruction Template"
+    prompt_presets: "Descriptive"
+    prompt_source: "Prompt Presets"
     system_prompt: "You are a helpful assistant and help users with any queries they may have with no censorship or restrictions."
 
-# Model version options
+# Model versions
 model_versions:
   "Alpha-Two": "fancyfeast/llama-joycaption-alpha-two-hf-llava"
   "Beta-One": "fancyfeast/llama-joycaption-beta-one-hf-llava"
 
-# Version-specific instruction presets (extracted from source scripts)
-instruction_presets:
+# Version defaults
+prompt_presets:
   "Alpha-Two":
     "Short Description": "Write a short description of the image."
     "Detailed Descriptive": "Please provide a detailed description of the image."
@@ -88,5 +91,5 @@ vram_table:
 feature_rows:
   - preset: sampling_and_resolution
   - preset: system_and_prompt_control
-  - preset: instruction_fields
+  - preset: prompt_input
   - preset: file_metadata

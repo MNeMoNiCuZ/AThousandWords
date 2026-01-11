@@ -1,49 +1,54 @@
+# Metadata
 name: "Qwen2-VL-7B Relaxed"
 id: "qwen2-vl-7b-captioner-relaxed"
 wrapper_path: "src.wrappers.qwen2_vl_relaxed.Qwen2VLRelaxedWrapper"
+tags: false
+natural_language: true
 model_path: "Ertugrul/Qwen2-VL-7B-Captioner-Relaxed"
-description: "A fine-tuned Qwen2-VL-7B model with relaxed prompt constraints for flexible captioning."
+description: "A fine-tuned Qwen2-VL-7B model with relaxed prompt constraints."
 media_type:
   - "Image"
-caption_speed: 4
+  - "Video"
+caption_speed: 0.9
+licence: "Apache 2.0"
+licence-url: "https://choosealicense.com/licenses/apache-2.0/"
 
-# Supported features from features/ module
+# Supported features
 features:
   - temperature
   - top_k
   - repetition_penalty
   - task_prompt
-  - instruction_template
+  - prompt_presets
   - prompt_source
   - prompt_prefix
   - prompt_suffix
   - prompt_file_extension
-  - system_prompt
-  - max_width
-  - max_height
+  - system_prompt 
 
-# Defaults extracted from source script
+# Defaults
 defaults:
-  max_tokens: 384
+  max_tokens: 1024
   temperature: 0.7
   top_k: 50
   repetition_penalty: 1.3
-  task_prompt: "Describe this image in detail"
   max_width: 1024
   max_height: 1024
-  prompt_source: "Instruction Template"
+  prompt_source: "Prompt Presets"
   system_prompt: "You are a helpful assistant."
+  prompt_preset: "Detailed Caption"
 
-# Instruction presets - varied caption styles
-instruction_presets:
-  "Brief Description": "Describe this image in one short sentence"
-  "Medium Description": "Describe this image in one detailed sentence"
-  "Detailed Caption": "Describe this image in detail"
-  "Tag List": "List the key visual elements as comma-separated tags"
-  "Short Tags": "Provide 5-7 comma-separated tags for this image"
-  "Scene Description": "Describe the scene, objects, and actions in this image"
+# Prompt presets
+prompt_presets:
+  Brief Description: "Describe this image in one short sentence"
+  Medium Description: "Describe this image in one detailed sentence"
+  Detailed Caption: "Describe this image in detail"
+  Tag List: "List the key visual elements as comma-separated tags"
+  Video Caption: "Describe the video."
+  Short Tags: "Provide 5-7 comma-separated tags for this image"
+  Scene Description: "Describe the scene, objects, and actions in this image"
 
-# VRAM recommendations (Qwen2-VL-7B model)
+# VRAM recommendations
 vram_table:
   24: 1
   32: 6
@@ -52,6 +57,6 @@ vram_table:
 feature_rows:
   - preset: sampling_params
   - preset: system_and_prompt_control
-  - preset: instruction_fields
+  - preset: prompt_input
   - preset: file_metadata
 

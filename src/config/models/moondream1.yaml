@@ -1,38 +1,57 @@
+# Metadata
 name: "Moondream 1"
 id: "moondream1"
 wrapper_path: "src.wrappers.moondream1.Moondream1Wrapper"
-model_path: "vikhyat/moondream1"
-description: "1.6B parameter vision-language model. Research use only."
+tags: false
+natural_language: true
+model_path: "vikhyatk/moondream1"
+description: "Small 1.6B parameter model, supports simple input prompts. <b>Batch size has no effect</b>. Research use only."
 media_type:
   - "Image"
-caption_speed: 4
+caption_speed: 0.44
+licence: "Non-Commercial"
+licence-url: "https://huggingface.co/vikhyatk/moondream1"
 
-# Moondream1 processes images sequentially - batch_size has no effect
-hide_batch_size: true
+# Model processes images sequentially - batch_size has no effect
+# hide_batch_size: true
+# Showing batch size anyway as it's still an indicator for minimum batch size.
 
-# Model-specific features
+
+# Supported features
 features:
   - task_prompt
   - prompt_source
-  - instruction_template
+  - prompt_presets
 
+# Defaults
 defaults:
   max_tokens: 512
-  task_prompt: "Describe this image."
-  prompt_source: "Instruction Template"
+  prompt_source: "Prompt Presets"
+  prompt_presets: "Detailed Caption"
 
-instruction_presets:
-  Brief: "Describe briefly."
-  Detailed: "Describe this image in detail."
-  Analysis: "Analyze the visual elements and composition."
-  Count: "How many objects are in this image?"
+prompt_presets:
+  Brief Caption: "Describe briefly."
+  Detailed Caption: "Describe this image in detail."
+  Visual Composition Analysis: "Analyze the visual elements and composition."
+  Colors: "Which color is most dominant in this image and where does it appear?"
+  Composition: "You are an expert image analyst and art director and an art critic. You know what makes an image and composition stand out and how to capture the image and describe it in words explaining the image in vivid and expressive ways. Always reply in sentence form, never use bullets or lists. Your reply should vividly describe an image to help blind people see art."
+  Contrast Description: "Describe the contrast in the image. Are there stark differences in color, light, or elements?"
+  Emotional Analysis: "short words what emotions do they seem to be feeling? summary"
+  Lighting Description: "Explain the lighting in the image. Where is the light source, and what effects does it create?"
+  Perspective: "From what perspective is the image taken?"
+  Pose: "Short words describe only the visual actions and poses of the characters or main subject in the scene if there are any."
+  Race / Species: "What race or species for this character, summary only"
+  Background Description: "Describe ONLY the background of the image. Describe only background details. The background of this image is..."
 
+  Count: "How many [OBJECTS] are in this image? Return ONLY the number."
+
+# VRAM recommendations
 vram_table:
   8: 1
 
 # Feature layout
 feature_rows:
   - preset: prompt_control
-  - preset: instruction_fields
+  - preset: prompt_input
   - preset: file_metadata
 

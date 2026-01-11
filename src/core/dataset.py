@@ -21,6 +21,9 @@ class MediaObject:
     # Track changes
     _modified: bool = False
     
+    # Runtime cache for video thumbnail (not persisted to disk across sessions, but kept for app lifetime)
+    _temp_thumbnail_path: Optional[str] = field(default=None, init=False, repr=False)
+    
     def __post_init__(self):
         """Automatically detect media type based on file extension."""
         if self.path.suffix.lower() in VIDEO_EXTENSIONS:
@@ -36,15 +39,39 @@ class MediaObject:
         """Load image or generate video thumbnail."""
         try:
             if self.is_video():
-                return self._extract_video_thumbnail()
+                thumb_path = self.get_thumbnail_path()
+                if thumb_path:
+                    return Image.open(thumb_path).convert("RGB")
+                return None
             else:
                 return Image.open(self.path).convert("RGB")
         except Exception as e:
             self.error = str(e)
             return None
     
-    def _extract_video_thumbnail(self) -> Optional[Image.Image]:
-        """Extract first frame from video as thumbnail using ffmpeg."""
+    def get_thumbnail_path(self) -> Optional[str]:
+        """
+        Get path to a valid thumbnail image.
+        For images, returns the file path.
+        For videos, generates a temp thumbnail if one doesn't exist, and returns that path.
+        """
+        if not self.is_video():
+            return str(self.path)
+            
+        # Check if we already have a generated temp thumbnail
+        if self._temp_thumbnail_path and os.path.exists(self._temp_thumbnail_path):
+            return self._temp_thumbnail_path
+            
+        # Generate new one
+        thumb_path = self._extract_video_thumbnail()
+        if thumb_path:
+            self._temp_thumbnail_path = thumb_path
+            return thumb_path
+            
+        return None
+    
+    def _extract_video_thumbnail(self) -> Optional[str]:
+        """Extract first frame from video as thumbnail using ffmpeg to a temp file."""
         try:
             # Create temporary file for thumbnail
             with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as tmp:
@@ -68,12 +95,62 @@ class MediaObject:
             )
             
             if result.returncode == 0 and os.path.exists(tmp_path):
-                img = Image.open(tmp_path).convert("RGB")
-                os.unlink(tmp_path)
-                return img
+                # Successfully created
+                # --- MODIFY: Add Play Overlay ---
+                try:
+                    from PIL import ImageDraw
+                    with Image.open(tmp_path) as img:
+                        # Convert to RGB to ensure drawing works
+                        img = img.convert("RGB")
+                        draw = ImageDraw.Draw(img)
+                        w, h = img.size
+                        
+                        # Calculate center
+                        cx, cy = w // 2, h // 2
+                        
+                        # Size of triangle relative to image
+                        # Use 2.5 divisor (approx 2x larger than previous // 5)
+                        s = min(w, h) // 2
+                        
+                        # Points for triangle (pointing right)
+                        # Center is (cx, cy)
+                        # Left-top: (cx - s/2, cy - s/2)
+                        # Left-bottom: (cx - s/2, cy + s/2)
+                        # Right-middle: (cx + s/2, cy)
+                        # Adjust to make it look centered visually
+                        
+                        p1 = (cx - s//2, cy - s//2)
+                        p2 = (cx - s//2, cy + s//2)
+                        p3 = (cx + s//1.5, cy)
+                        
+                        # Draw semi-transparent triangle
+                        # PIL doesn't support alpha on RGB easily without composition
+                        # So we draw a solid white triangle for now, maybe with outline
+                        
+                        # To do transparency, we need RGBA
+                        overlay = Image.new('RGBA', img.size, (0, 0, 0, 0))
+                        draw_overlay = ImageDraw.Draw(overlay)
+                        
+                        # Draw semi-transparent white triangle
+                        # Reduced opacity by 50% (180->90, 100->50)
+                        draw_overlay.polygon([p1, p2, p3], fill=(255, 255, 255, 90), outline=(0, 0, 0, 50))
+                        
+                        # Composite
+                        img = Image.alpha_composite(img.convert("RGBA"), overlay)
+                        
+                        # Save back as JPG (no alpha)
+                        img.convert("RGB").save(tmp_path, "JPEG", quality=85)
+                        
+                except Exception as e:
+                    # If overlay fails, we still return the original thumbnail
+                    print(f"Failed to draw overlay: {e}")
+                    pass
+                
+                return tmp_path
             else:
-                # Fallback: return a placeholder if ffmpeg fails
-                os.unlink(tmp_path) if os.path.exists(tmp_path) else None
+                # Failed
+                if os.path.exists(tmp_path):
+                    os.unlink(tmp_path)
                 return None
                 
         except Exception as e:

@@ -12,6 +12,15 @@ import os
 import sys
 import argparse
 import logging
+import warnings
+
+# Suppress warnings
+warnings.filterwarnings("ignore", message=".*torchcodec is not installed.*")
+warnings.filterwarnings("ignore", message=".*Using `torchvision` for video decoding is deprecated.*")
+warnings.filterwarnings("ignore", message=".*The video decoding and encoding capabilities of torchvision are deprecated.*")
+
+# Suppress Qwen-VL-Utils verbose logging
+logging.getLogger("qwen_vl_utils").setLevel(logging.ERROR)
 
 # Ensure imports work from root directory
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -42,6 +51,7 @@ Examples:
   py captioner.py --model smolVLM --input ./input --input-limit 10
   py captioner.py --model mimovl --recursive --batch-size 4
   py captioner.py --model smolVLM --model-version 256M --temperature 0.8
+  py captioner.py --model wd14 --no-overwrite  # Skip existing files
         """
     )
     
@@ -64,7 +74,7 @@ Examples:
         "Input/Output": ["output_format", "overwrite", "recursive", "output_json", "prefix", "suffix"],
         "Generation": ["batch_size", "max_tokens", "temperature", "top_k", "repetition_penalty"],
         "Model-Specific (varies by model)": ["model_version", "model_mode", "caption_length", "strip_thinking_tags", "flash_attention", "fps"],
-        "Prompts": ["task_prompt", "system_prompt", "instruction_template", 
+        "Prompts": ["task_prompt", "system_prompt", "prompt_presets", 
                     "prompt_source", "prompt_file_extension", "prompt_prefix", "prompt_suffix"],
         "Text Processing": ["clean_text", "collapse_newlines", 
                            "normalize_text", "remove_chinese", "strip_loop", "strip_contents_inside", "max_word_length"],
@@ -110,6 +120,11 @@ Examples:
             # store_true returns False when omitted, which incorrectly overrides YAML defaults
             group.add_argument(flag_name, action="store_const", const=True, default=None,
                               help=f"(flag) {desc}")
+            # Add --no-overwrite option for explicit False
+            if name == "overwrite":
+                group.add_argument(f"--no-{name.replace('_', '-')}", action="store_const",
+                                  const=False, default=None, dest=name,
+                                  help=f"(flag) Explicitly disable overwriting existing files")
         elif config.gui_type == "slider":
             val_type = float if isinstance(default, float) else int
             type_name = "float" if val_type == float else "int"

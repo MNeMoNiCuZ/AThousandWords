@@ -1,12 +1,20 @@
+# Metadata
 name: "MiaoshouAI Florence-2"
 id: "miaoshouai"
 wrapper_path: "src.wrappers.miaoshouai.MiaoshouAIWrapper"
+tags: false
+natural_language: true
 model_path: "MiaoshouAI/Florence-2-base-PromptGen-v1.5"
-description: "Florence-2 variant with multiple prompt generation modes."
+description: "Florence-2 variant with more Prompt Presets."
 model_id: "MiaoshouAI/Florence-2-base-PromptGen-v1.5"
 media_type:
   - "Image"
-caption_speed: 4
+caption_speed: 3.3
+licence: "MIT"
+licence-url: "https://choosealicense.com/licenses/mit/"
+
+# Disable custom prompts
+supports_custom_prompts: false
 
 # Supported features from features/ module
 features:
@@ -14,7 +22,7 @@ features:
   - top_k
   - repetition_penalty
   - task_prompt
-  - instruction_template
+  - prompt_presets
   - prompt_source
   - prompt_prefix
   - prompt_suffix
@@ -26,18 +34,17 @@ defaults:
   top_k: 50
   repetition_penalty: 1.3
   max_tokens: 1024
-  task_prompt: "<MORE_DETAILED_CAPTION>"
+  prompt_presets: "Detailed Caption"
   max_width: 1024
   max_height: 1024
 
-# Instruction presets - MiaoshouAI prompt types
-instruction_presets:
+# Prompt presets - MiaoshouAI prompt types
+prompt_presets:
   "Generate Tags": "<GENERATE_TAGS>"
-  "Caption": "<CAPTION>"
+  "Short Caption": "<CAPTION>"
   "Detailed Caption": "<DETAILED_CAPTION>"
-  "More Detailed Caption": "<MORE_DETAILED_CAPTION>"
+  "Very Detailed Caption": "<MORE_DETAILED_CAPTION>"
   "Mixed Caption": "<MIXED_CAPTION>"
-  "Empty": "<EMPTY>"
 
 # VRAM recommendations
 vram_table:
@@ -52,6 +59,5 @@ vram_table:
 # Feature layout
 feature_rows:
   - preset: sampling_params
-  - preset: prompt_control
-  - preset: instruction_fields
+  - preset: prompt_preset_and_prompt
   - preset: file_metadata

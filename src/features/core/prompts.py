@@ -4,6 +4,7 @@ Prompts Feature
 Task prompt and system prompt for model instructions.
 """
 
+from typing import Dict, Any
 from ..base import BaseFeature, FeatureConfig
 
 
@@ -22,6 +23,14 @@ class TaskPromptFeature(BaseFeature):
             gui_label="Task Prompt",
             gui_info="The instruction sent to the model for each image."
         )
+
+    def get_gui_config(self) -> Dict[str, Any]:
+        config = super().get_gui_config()
+        config.update({
+            "lines": 2,
+            "max_lines": 16
+        })
+        return config
     
     def validate(self, value) -> str:
         if value is None:

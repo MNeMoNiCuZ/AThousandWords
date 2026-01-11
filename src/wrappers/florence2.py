@@ -74,7 +74,7 @@ class Florence2Wrapper(BaseCaptionModel):
         
         print(f"Florence-2 loaded on {self.device}")
     
-    def _run_inference(self, images: List[Image.Image], prompt: str, args: Dict[str, Any]) -> List[str]:
+    def _run_inference(self, images: List[Image.Image], prompt: List[str], args: Dict[str, Any]) -> List[str]:
         """Run florence-2 inference on batch of images - matches source implementation."""
         if self.processor is None:
             raise RuntimeError("Florence-2 processor is None - model may not have loaded correctly")
@@ -84,13 +84,13 @@ class Florence2Wrapper(BaseCaptionModel):
             "pixel_values": []
         }
         
-        for img in images:
+        for img, p in zip(images, prompt):
             if img is None or not isinstance(img, Image.Image):
                 continue
             
             try:
                 input_data = self.processor(
-                    text=prompt,
+                    text=p,
                     images=img,
                     return_tensors="pt"
                 )

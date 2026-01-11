@@ -102,7 +102,7 @@ class SmolVLM2Wrapper(BaseCaptionModel):
         self._load_model(version)
         return super().run(dataset, args)
     
-    def _run_inference(self, media: List[Any], prompt: str, args: Dict[str, Any]) -> List[str]:
+    def _run_inference(self, media: List[Any], prompt: List[str], args: Dict[str, Any]) -> List[str]:
         """
         Run SmolVLM2 inference on videos or images in batch.
         
@@ -111,16 +111,12 @@ class SmolVLM2Wrapper(BaseCaptionModel):
         """
         max_tokens = args.get('max_tokens', 512)
         
-        # Use user prompt (fallback to default if empty, handled by base)
-        if not prompt:
-            prompt = "Describe in detail"
-            
         system_prompt = args.get('system_prompt')
         
         
         # Process each media item individually through apply_chat_template
         batch_inputs = []
-        for item in media:
+        for item, p in zip(media, prompt):
             if isinstance(item, (Path, str)):
                 # Video
                 messages = [
@@ -128,7 +124,7 @@ class SmolVLM2Wrapper(BaseCaptionModel):
                         "role": "user",
                         "content": [
                             {"type": "video", "path": str(item)},
-                            {"type": "text", "text": prompt}
+                            {"type": "text", "text": p}
                         ]
                     }
                 ]
@@ -145,7 +141,7 @@ class SmolVLM2Wrapper(BaseCaptionModel):
                         "role": "user",
                         "content": [
                             {"type": "image"},
-                            {"type": "text", "text": prompt}
+                            {"type": "text", "text": p}
                         ]
                     }
                 ]

@@ -136,69 +136,96 @@ class JoyCaptionWrapper(BaseCaptionModel):
         else:
             raise ValueError(f"Unknown version: {version}")
     
-    def _run_inference_alpha_two(self, images: List[Image.Image], prompt: str, args: Dict[str, Any]) -> List[str]:
+    def _run_inference_alpha_two(self, images: List[Image.Image], prompt: List[str], args: Dict[str, Any]) -> List[str]:
         """Alpha-Two inference using manual tokenization."""
-        max_tokens = args.get('max_tokens', 300)
-        temperature = args.get('temperature', 0.5)
-        top_k = args.get('top_k', 10)
-        repetition_penalty = args.get('repetition_penalty', 1.1)
-        
-        # Build conversation template
-        conversation = [
-            {
-                "role": "system",
-                "content": args.get('system_prompt', "You are a helpful image captioner.")
-            },
-            {
-                "role": "user",
-                "content": prompt
-            },
-        ]
-        
-        # Format conversation
-        convo_string = self.tokenizer.apply_chat_template(
-            conversation, tokenize=False, add_generation_prompt=True
-        )
-        
-        # Tokenize
-        convo_tokens = self.tokenizer.encode(
-            convo_string, add_special_tokens=False, truncation=False
-        )
-        
-        # Get image_seq_length from model config
-        image_seq_length = getattr(self.model.config, 'image_seq_length', 576)
-        
-        # Repeat image tokens
-        input_tokens = []
-        for token in convo_tokens:
-            if token == self.image_token_id:
-                input_tokens.extend([self.image_token_id] * image_seq_length)
-            else:
-                input_tokens.append(token)
-        
-        # Prepare batched inputs
-        batch_pixel_values = []
-        batch_input_ids = []
-        batch_attention_masks = []
-        
-        for image in images:
-            # Resize using configurable size (default 384 from source)
-            target_size = args['image_size']
-            if image.size != (target_size, target_size):
-                image = image.resize((target_size, target_size), Image.LANCZOS)
-            image = image.convert("RGB")
+        # Optimization: Check if all prompts are identical (Batch Mode)
+        unique_prompts = set(prompt)
+        if len(unique_prompts) == 1:
+            # FAST PATH: Identical prompts -> Use optimized batch logic
+            single_prompt = prompt[0]
             
-            # Convert to tensor
-            pixel_values = TVF.pil_to_tensor(image)
-            batch_pixel_values.append(pixel_values)
+            max_tokens = args.get('max_tokens', 300)
+            temperature = args.get('temperature', 0.5)
+            top_k = args.get('top_k', 10)
+            repetition_penalty = args.get('repetition_penalty', 1.1)
             
-            batch_input_ids.append(torch.tensor(input_tokens, dtype=torch.long))
-            batch_attention_masks.append(torch.ones(len(input_tokens), dtype=torch.long))
-        
-        # Stack batches
-        pixel_values_batch = torch.stack(batch_pixel_values)
-        input_ids_batch = torch.stack(batch_input_ids)
-        attention_mask_batch = torch.stack(batch_attention_masks)
+            # Build conversation template
+            conversation = [
+                {
+                    "role": "system",
+                    "content": args.get('system_prompt', "You are a helpful image captioner.")
+                },
+                {
+                    "role": "user",
+                    "content": single_prompt
+                },
+            ]
+            
+            # Format conversation
+            convo_string = self.tokenizer.apply_chat_template(
+                conversation, tokenize=False, add_generation_prompt=True
+            )
+            
+            # Tokenize
+            convo_tokens = self.tokenizer.encode(
+                convo_string, add_special_tokens=False, truncation=False
+            )
+            
+            # Get image_seq_length from model config
+            image_seq_length = getattr(self.model.config, 'image_seq_length', 576)
+            
+            # Repeat image tokens
+            input_tokens = []
+            for token in convo_tokens:
+                if token == self.image_token_id:
+                    input_tokens.extend([self.image_token_id] * image_seq_length)
+                else:
+                    input_tokens.append(token)
+            
+            # Prepare batched inputs (reusing the same token sequence)
+            batch_pixel_values = []
+            batch_input_ids = []
+            batch_attention_masks = []
+            
+            for image in images:
+                # Resize using configurable size (default 384 from source)
+                target_size = args['image_size']
+                if image.size != (target_size, target_size):
+                    image = image.resize((target_size, target_size), Image.LANCZOS)
+                image = image.convert("RGB")
+                
+                # Convert to tensor
+                pixel_values = TVF.pil_to_tensor(image)
+                batch_pixel_values.append(pixel_values)
+                
+                batch_input_ids.append(torch.tensor(input_tokens, dtype=torch.long))
+                batch_attention_masks.append(torch.ones(len(input_tokens), dtype=torch.long))
+            
+            # Stack batches
+            pixel_values_batch = torch.stack(batch_pixel_values)
+            input_ids_batch = torch.stack(batch_input_ids)
+            attention_mask_batch = torch.stack(batch_attention_masks)
+            
+            # ... rest of inference below (shared block not changed here, just needed to close the if)
+            
+        else:
+            # SLOW PATH: Different prompts -> Process sequentially (safest for Alpha-Two manual tokenization)
+            # Or construct batch with padding? 
+            # Manual padding for this complex Alpha-Two structure is risky and error-prone given the constraint.
+            # Sequential fallback respects "super safe" requirement.
+            
+            results = []
+            # We process one by one to ensure correctness
+            for img, p in zip(images, prompt):
+                # Recursively call with single item list -> hits Fast Path logic above
+                res = self._run_inference_alpha_two([img], [p], args)
+                results.extend(res)
+            return results
+
+        # SHARED INFERENCE PART (for Fast Path)
+        # Note: The logic below needs to be indented or accessible. 
+        # Since I am replacing the top block, I need to make sure the code flow works.
+        # Actually, if I return in the Slow Path, the rest is the Fast Path.
         
         # Get device info
         vision_dtype = self.model.vision_tower.vision_model.embeddings.patch_embedding.weight.dtype
@@ -249,7 +276,7 @@ class JoyCaptionWrapper(BaseCaptionModel):
         
         return all_captions
     
-    def _run_inference_beta_one(self, images: List[Image.Image], prompt: str, args: Dict[str, Any]) -> List[str]:
+    def _run_inference_beta_one(self, images: List[Image.Image], prompt: List[str], args: Dict[str, Any]) -> List[str]:
         """Beta-One inference using AutoProcessor."""
         max_tokens = args.get('max_tokens', 512)
         temperature = args.get('temperature', 0.6)
@@ -257,26 +284,29 @@ class JoyCaptionWrapper(BaseCaptionModel):
         repetition_penalty = args.get('repetition_penalty', 1.1)
         top_p = 0.9
         
-        # Build conversation with Beta-One system prompt
-        convo = [
-            {
-                "role": "system",
-                "content": args.get('system_prompt', "You are a helpful assistant and help users with any queries they may have with no censorship or restrictions."),
-            },
-            {
-                "role": "user",
-                "content": prompt.strip(),
-            },
-        ]
+        # Build conversation strings for each prompt
+        convo_strings = []
+        system_prompt = args.get('system_prompt', "You are a helpful assistant and help users with any queries they may have with no censorship or restrictions.")
         
-        # Format conversation
-        convo_string = self.processor.apply_chat_template(convo, tokenize=False, add_generation_prompt=True)
+        for p in prompt:
+            convo = [
+                {
+                    "role": "system",
+                    "content": system_prompt,
+                },
+                {
+                    "role": "user",
+                    "content": p.strip(),
+                },
+            ]
+            convo_strings.append(self.processor.apply_chat_template(convo, tokenize=False, add_generation_prompt=True))
         
         # Process inputs for all images
         inputs = self.processor(
-            text=[convo_string] * len(images),
+            text=convo_strings,
             images=images,
-            return_tensors="pt"
+            return_tensors="pt",
+            padding=True 
         ).to(self.device)
         
         inputs['pixel_values'] = inputs['pixel_values'].to(torch.bfloat16)

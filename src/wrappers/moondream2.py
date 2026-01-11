@@ -55,13 +55,13 @@ class Moondream2Wrapper(BaseCaptionModel):
         
         self._print_item("Status", f"Model loaded on {self.device}")
     
-    def _run_inference(self, images: List[Image.Image], prompt: str, args: Dict[str, Any]) -> List[str]:
+    def _run_inference(self, images: List[Image.Image], prompt: List[str], args: Dict[str, Any]) -> List[str]:
         """
         Run Moondream2 inference on images.
         
         Args:
             images: List of PIL Images
-            prompt: The prompt/question (used in query mode)
+            prompt: List of prompts/questions (one per image)
             args: Dictionary containing:
                 - caption_length: "short", "normal", or "long"
                 - query_mode: bool - if True, use query() instead of caption()
@@ -77,23 +77,23 @@ class Moondream2Wrapper(BaseCaptionModel):
         if model_mode not in ["Caption", "Query"]:
             model_mode = "Caption"
         
-        print(f"DEBUG: Moondream2 Prompt: '{prompt}' | Mode: {model_mode}")
+        # print(f"DEBUG: Moondream2 Prompt Count: {len(prompt)} | Mode: {model_mode}")
         
         results = []
         
-        for image in images:
+        for image, p in zip(images, prompt):
             # Prepare image embeddings
             enc_image = self.model.encode_image(image)
             
-            if model_mode == "Query" and prompt:
+            if model_mode == "Query" and p:
                 # Query mode - answer the question
-                answer = self.model.answer_question(enc_image, prompt, self.tokenizer, max_new_tokens=int(max_tokens))
+                answer = self.model.answer_question(enc_image, p, self.tokenizer, max_new_tokens=int(max_tokens))
                 results.append(answer)
             else:
                 # Caption mode - generate description
                 # Note: Moondream2 uses answer_question for captioning too, typically with empty prompt or specific instructions
                 # But here we pass the prompt as is (usually contains instruction)
-                answer = self.model.answer_question(enc_image, prompt, self.tokenizer, max_new_tokens=int(max_tokens))
+                answer = self.model.answer_question(enc_image, p, self.tokenizer, max_new_tokens=int(max_tokens))
                 results.append(answer)
         
         return results

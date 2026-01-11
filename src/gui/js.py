@@ -50,4 +50,55 @@ JS = r"""
             }
         }
     }, true); // <--- CAPTURE PHASE
+    
+    // ========================================
+    // AUTO-RELOAD ON SESSION MISMATCH (KeyError: 46 fix)
+    // ========================================
+    // Detect when Gradio's function queue encounters a KeyError (stale function ID)
+    // and automatically reload the page ONCE to get fresh session state
+    
+    (function() {
+        let hasReloaded = sessionStorage.getItem('gradio_auto_reload');
+        
+        // Listen for console errors from Gradio's error messages
+        // Intercept fetch errors that indicate queue issues
+        const originalFetch = window.fetch;
+        window.fetch = function(...args) {
+            return originalFetch.apply(this, args)
+                .then(response => {
+                    // Check if response indicates a queue error
+                    if (response.url.includes('/queue/join') && !response.ok) {
+                        console.warn('[Auto-Reload] Queue join failed, checking for session mismatch...');
+                        // Clone response to read body without consuming it
+                        response.clone().json().then(data => {
+                            if (data && data.error && typeof data.error === 'string') {
+                                // Check for KeyError pattern in error message
+                                if (data.error.includes('KeyError') || data.error.includes('not found in')) {
+                                    console.error('[Auto-Reload] Detected stale Gradio session (function ID mismatch)');
+                                    if (!hasReloaded) {
+                                        console.log('[Auto-Reload] Reloading page automatically...');
+                                        sessionStorage.setItem('gradio_auto_reload', 'true');
+                                        setTimeout(() => window.location.reload(), 500);
+                                    } else {
+                                        console.error('[Auto-Reload] Already reloaded once. Manual refresh required (Ctrl+F5).');
+                                        sessionStorage.removeItem('gradio_auto_reload');
+                                    }
+                                }
+                            }
+                        }).catch(() => {});
+                    }
+                    return response;
+                })
+                .catch(error => {
+                    console.error('[Auto-Reload] Fetch error:', error);
+                    throw error;
+                });
+        };
+        
+        // Clear the reload flag after successful load
+        if (hasReloaded) {
+            console.log('[Auto-Reload] Page reloaded successfully, clearing flag.');
+            setTimeout(() => sessionStorage.removeItem('gradio_auto_reload'), 2000);
+        }
+    })();
 """
