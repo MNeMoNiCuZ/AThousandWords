@@ -6,10 +6,8 @@ pillow
 tqdm
 huggingface_hub>=0.24.3
 
-# --- Major ML Libraries ---
-# Note: User prefers to install torch manually, so we include it as a comment or broad spec
-# torch>=2.1.0
-torchvision
+# --- Key Libraries ---
+# Install torch manually
 transformers>=4.43.3
 accelerate>=0.26.0
 safetensors
