@@ -5,7 +5,28 @@ import src.features as feature_registry
 
 
 def create_general_settings_accordion(app):
-    """Create the General Settings accordion with all processing options."""
+    """
+    Builds the "General Settings" accordion containing UI controls for caption processing and returns those components.
+    
+    The returned dictionary exposes the created Gradio inputs for configuring output location/format and processing options (booleans, numeric limits, and prefix/suffix text).
+    
+    Returns:
+        components (dict): Mapping of component names to Gradio UI elements:
+            - "out_dir": Output folder Textbox
+            - "out_fmt": Output format Textbox
+            - "recursive": Recursive Checkbox
+            - "overwrite": Overwrite Checkbox
+            - "normalize": Normalize text Checkbox
+            - "collapse": Collapse newlines Checkbox
+            - "clean": Clean text Checkbox
+            - "console": Print to console Checkbox
+            - "strip_loop": Strip loop Checkbox
+            - "remove_chinese": Remove Chinese Checkbox
+            - "max_width": Max width Number input
+            - "max_height": Max height Number input
+            - "prefix": Prefix Textbox
+            - "suffix": Suffix Textbox
+    """
     cfg = app.config_mgr.get_global_settings()
     components = {}
     
@@ -73,7 +94,28 @@ def create_general_settings_accordion(app):
 
 
 def create_model_settings_accordion(app, get_model_description_html_fn):
-    """Create the Model Settings accordion with model selection and dynamic features."""
+    """
+    Create the Model Settings accordion that exposes model selection, media-type filtering, and dynamic per-model feature inputs.
+    
+    Parameters:
+        app: The application object providing model lists, current model id, and configuration.
+        get_model_description_html_fn (callable): Function(app, model_id) -> str that returns HTML describing the specified model.
+    
+    Returns:
+        components (dict): A mapping of UI components and helpers:
+            - model_description: Markdown component showing the current model description.
+            - presets_tracker: State used to trigger feature re-renders.
+            - models_chk: CheckboxGroup for enabled models.
+            - media_type_filter: Dropdown to filter models by media type.
+            - model_sel: Dropdown for selecting the active model.
+            - model_version_dropdown: Dropdown for selecting a model version (may be hidden).
+            - batch_size_input: Number input for batch size (may be hidden).
+            - max_tokens_input: Number input for max output tokens (may be hidden).
+            - model_feature_components: Dict grouping 'model_version', 'batch_size', and 'max_tokens' components.
+            - settings_state: State holding the current model settings.
+            - run_inference_wrapper: Callable wrapper to run inference with current settings.
+            - update_model_settings_ui: Handler to update the UI when model settings change.
+    """
     from ..handlers import create_update_model_settings_handler, create_inference_wrapper
     from ..renderers.features import render_features_content
     from ..logic.model_logic import resolve_model_values, get_initial_model_state
@@ -124,17 +166,46 @@ def create_model_settings_accordion(app, get_model_description_html_fn):
 
         @gr.render(inputs=[model_sel, model_version_dropdown, presets_tracker])
         def render_features(model_id, model_version, tracker):
+            """
+            Render model-specific feature controls based on the selected model and version.
+            
+            Parameters:
+                model_id (str): Identifier of the selected model.
+                model_version (str | None): Selected version of the model, or None to use default.
+                tracker (int): Change tracker value used to force re-rendering of dynamic feature UI.
+            """
             render_features_content(app, model_id, model_version, tracker, settings_state)
 
         run_inference_wrapper = create_inference_wrapper(app, settings_state)
         update_model_settings_ui = create_update_model_settings_handler(app, model_feature_components, model_description)
 
         def initialize_model_state(model_id):
+            """
+            Return the initial configuration/state for the specified model.
+            
+            Parameters:
+                model_id (str): Identifier of the model to initialize.
+            
+            Returns:
+                dict: A dictionary containing the model's initial settings and state values.
+            """
             return get_initial_model_state(app, model_id)
 
         model_sel.change(fn=initialize_model_state, inputs=[model_sel], outputs=[settings_state])
 
         def update_static_inputs(model_id, version):
+            """
+            Return the resolved static input defaults (batch size and max tokens) for the given model and version.
+            
+            If no model_id is provided, or the resolved values do not include a key, this returns the defaults: batch_size 1 and max_tokens 1024.
+            
+            Parameters:
+                model_id (str | None): Identifier of the model to resolve values for.
+                version (str | None): Specific model version identifier (optional).
+            
+            Returns:
+                tuple: (batch_size (int), max_tokens (int)) where `batch_size` is the number of items to process per batch and `max_tokens` is the token limit; defaults are 1 and 1024 respectively.
+            """
             if not model_id:
                 return 1, 1024
             values = resolve_model_values(app, model_id, version)
@@ -160,7 +231,24 @@ def create_model_settings_accordion(app, get_model_description_html_fn):
 
 
 def update_prompt_source_visibility(prompt_source_value):
-    """Show/hide prompt-related fields based on prompt_source selection."""
+    """
+    Control visibility of prompt-related UI elements based on the selected prompt source.
+    
+    Maps the provided prompt_source_value to a list of seven gr.update objects that set visibility for these UI elements in order:
+        1. prompt_presets
+        2. task_prompt
+        3. prompt_prefix
+        4. prompt_file_extension
+        5. prompt_suffix
+        6. Row: prompt_mode
+        7. Row: file_metadata_mode
+    
+    Parameters:
+        prompt_source_value (str | None): One of "Prompt Presets", "From File", "From Metadata", or falsy/other values.
+    
+    Returns:
+        list: Seven elements of gr.update with visibility booleans corresponding to the UI elements listed above.
+    """
     if not prompt_source_value:
         return [gr.update(visible=False)] * 7
     
@@ -199,7 +287,16 @@ def update_prompt_source_visibility(prompt_source_value):
 
 
 def update_models_by_media_type(app, media_type):
-    """Filter models based on selected media type."""
+    """
+    Filter available models by media type and determine the appropriate selection for the model dropdown.
+    
+    Parameters:
+        app: Application object providing get_models_by_media_type(media_type) and current_model_id.
+        media_type (str): The selected media type used to filter models (e.g., "Image" or "Video").
+    
+    Returns:
+        gr.update: An update object with `choices` set to the filtered model list and `value` set to the current model if it remains available, otherwise the first filtered model, or `None` if no models match.
+    """
     filtered_models = app.get_models_by_media_type(media_type)
     if app.current_model_id in filtered_models:
         new_value = app.current_model_id
@@ -211,7 +308,18 @@ def update_models_by_media_type(app, media_type):
 
 
 def create_control_area():
-    """Create the control buttons and command output."""
+    """
+    Create the control row for actions and the generated CLI command output.
+    
+    Returns:
+        components (dict): Mapping of UI components:
+            - "save_btn": Button to save settings.
+            - "generate_command_btn": Button to generate the CLI command.
+            - "run_btn": Primary button to start captioning.
+            - "download_btn_group": Hidden Column wrapping the download controls.
+            - "download_btn": DownloadButton for exporting results.
+            - "command_output": Textbox showing the generated CLI command.
+    """
     with gr.Row():
         save_btn = gr.Button("Save Settings", variant="secondary", scale=0)
         generate_command_btn = gr.Button("Generate Command", variant="secondary", scale=0)

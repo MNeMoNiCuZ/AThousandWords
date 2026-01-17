@@ -13,14 +13,16 @@ logger = logging.getLogger("GUI.FileLoader")
 
 def persist_uploaded_files(file_objs, uploads_dir: Path) -> list:
     """
-    Persist uploaded files from temp directory to stable location.
+    Persist uploaded files from temporary paths into a stable uploads directory.
     
-    Args:
-        file_objs: List of file objects or paths from Gradio
-        uploads_dir: Directory to persist files to
-        
+    Strips an optional Gradio UUID prefix from each uploaded filename, writes each file to uploads_dir with a new UUID-prefixed filename to avoid collisions, and returns the absolute paths of successfully persisted files.
+    
+    Parameters:
+        file_objs: Iterable of uploaded file objects or path-like strings as provided by Gradio; each item should reference a readable temporary file.
+        uploads_dir (Path): Directory where files will be persisted; created if it does not exist.
+    
     Returns:
-        List of absolute paths to persisted files
+        list[str]: Absolute paths to the files that were successfully persisted.
     """
     uploads_dir.mkdir(parents=True, exist_ok=True)
     
@@ -79,13 +81,16 @@ def load_new_files_to_dataset(dataset, persistent_files):
 
 def analyze_input_paths(dataset):
     """
-    Analyze the current dataset paths to determine structure.
+    Determine the common directory for all image paths in a dataset, whether the images originate from mixed sources, and any filename collisions.
     
-    Args:
-        dataset: Dataset object containing images
-        
+    Parameters:
+        dataset: Dataset object whose `images` attribute is an iterable of objects with a `path` attribute (a Path-like object).
+    
     Returns:
-        tuple: (common_root (Path|None), mixed_sources (bool), collisions (list))
+        tuple: (common_root, mixed_sources, collisions)
+            common_root (Path or None): the common directory path for all images, or `None` if no common path can be computed.
+            mixed_sources (bool): `True` if images come from mixed sources (no single common root), `False` otherwise.
+            collisions (list): list of filenames that appear under multiple different full paths.
     """
     import os
     
@@ -117,7 +122,15 @@ def analyze_input_paths(dataset):
 
 
 def create_zip(file_paths: list) -> str:
-    """Create zip file, preserving relative structure if possible."""
+    """
+    Create a ZIP archive containing the given files, preserving their relative paths when a common root can be determined.
+    
+    Parameters:
+        file_paths (list): Iterable of file system paths (strings or Path-like) to include in the archive.
+    
+    Returns:
+        str or None: Absolute path to the created ZIP file, or `None` if no files were provided or the archive could not be created.
+    """
     import zipfile
     import tempfile
     import datetime
@@ -151,4 +164,3 @@ def create_zip(file_paths: list) -> str:
     except Exception as e:
         logger.error(f"Failed to create zip: {e}")
         return None
-

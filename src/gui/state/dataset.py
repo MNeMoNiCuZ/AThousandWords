@@ -22,6 +22,14 @@ class DatasetManager:
     """Manages dataset loading and file operations."""
     
     def __init__(self, config_mgr):
+        """
+        Initialize a DatasetManager with configuration and prepare default dataset state and paths.
+        
+        Initializes an empty Dataset, ensures the default input directory exists, sets the path used to persist the input list, and initializes tracking fields for the current input path and whether input came from drag-and-drop.
+        
+        Parameters:
+            config_mgr: Configuration manager used to access application settings and persistence locations.
+        """
         self.config = config_mgr
         self.dataset = Dataset()
         
@@ -33,14 +41,25 @@ class DatasetManager:
         self.is_drag_and_drop = False
     
     def clear(self):
-        """Clear the dataset."""
+        """
+        Reset the manager to an empty dataset and clear drag-and-drop state.
+        
+        Replaces the current Dataset with a new, empty Dataset instance and sets the drag-and-drop flag to False.
+        """
         self.dataset = Dataset()
         self.is_drag_and_drop = False
     
     def load_files(self, file_objs) -> int:
-        """Load files from drag-and-drop.
+        """
+        Load files provided by a drag-and-drop operation into the persistent uploads directory and add any new images to the current dataset.
         
-        Returns number of files added.
+        Files from `file_objs` are copied into the "user/uploads" directory with a UUID-prefixed filename; missing files are skipped, duplicate images already present in the dataset are not added, and the dataset list is persisted. The manager's `current_input_path` is set to the uploads directory and `is_drag_and_drop` is set to True on success.
+        
+        Parameters:
+            file_objs (iterable): An iterable of file-like objects or path strings produced by a drag-and-drop operation.
+            
+        Returns:
+            int: Number of images that were newly added to the dataset.
         """
         if not file_objs:
             return 0
@@ -92,10 +111,17 @@ class DatasetManager:
     
     def load_from_path(self, folder_path: str, recursive: bool = False, 
                         limit_count: int = 0) -> Tuple[bool, str]:
-        """Load images from path.
-        
-        Returns (success, message).
         """
+                        Load images from a folder into the manager's dataset.
+                        
+                        Parameters:
+                            folder_path (str): Path to the source folder. If empty, the default input directory is used.
+                            recursive (bool): If True, scan subdirectories recursively.
+                            limit_count (int): Maximum number of images to keep after scanning; 0 means no limit.
+                        
+                        Returns:
+                            tuple: `(success, message)` where `success` is `True` on successful load, `False` if the source folder was not found, and `message` describes the outcome.
+                        """
         path_str = folder_path.strip() if folder_path else ""
         
         if not path_str:
@@ -123,7 +149,11 @@ class DatasetManager:
         return True, f"Loaded {len(self.dataset.images)} files"
     
     def _save_dataset_list(self):
-        """Save current dataset file paths to JSON for CLI usage."""
+        """
+        Persist the dataset's image file paths as a JSON array for CLI consumption.
+        
+        Creates parent directories for the configured input list path if needed, writes an array of absolute image paths to that file, and updates `current_input_path` to the input list path. On failure, logs an error and returns without raising.
+        """
         try:
             self.input_list_path.parent.mkdir(parents=True, exist_ok=True)
             file_list = [str(img.path.absolute()) for img in self.dataset.images]
@@ -134,9 +164,13 @@ class DatasetManager:
             logger.error(f"Failed to save input list: {e}")
     
     def analyze_paths(self) -> Tuple[Optional[Path], bool, List]:
-        """Analyze dataset paths for common root and collisions.
+        """
+        Determine a common root directory for dataset images, whether images come from mixed source directories, and any filename collisions.
         
-        Returns (common_root, mixed_sources, collisions).
+        Returns:
+            common_root (Path | None): The deepest common ancestor directory of all image paths, or `None` if no common root can be determined.
+            mixed_sources (bool): `True` if images originate from more than one parent directory, `False` otherwise.
+            collisions (List[str]): Unique filenames that appear more than once among the dataset images.
         """
         if not self.dataset.images:
             return None, False, []
@@ -168,10 +202,20 @@ class DatasetManager:
     
     @property
     def count(self) -> int:
-        """Number of images in dataset."""
+        """
+        Number of images in the dataset.
+        
+        Returns:
+            int: The count of image entries currently stored in the dataset.
+        """
         return len(self.dataset.images)
     
     @property
     def images(self):
-        """Dataset images list."""
+        """
+        List the images in the current dataset.
+        
+        Returns:
+            images (list): Image entries contained in the dataset.
+        """
         return self.dataset.images

@@ -18,6 +18,16 @@ class ResizeTool(BaseTool):
     
     @property
     def config(self) -> ToolConfig:
+        """
+        Provide the configuration metadata for the Resize tool.
+        
+        Returns:
+            ToolConfig: Configuration containing:
+                - name: "resize"
+                - display_name: "Resize"
+                - description: Markdown describing batch resizing to a maximum dimension while preserving aspect ratio, no upscaling for smaller images, and a caution about irreversible overwrites (recommend using an output directory or prefix/suffix).
+                - icon: Icon string (empty by default).
+        """
         return ToolConfig(
             name="resize",
             display_name="Resize",
@@ -111,7 +121,14 @@ Images smaller than the target are NOT upscaled.
         return result
     
     def create_gui(self, app) -> tuple:
-        """Create the Resize tool UI. Returns (run_button, inputs) for later event wiring."""
+        """
+        Create and return the Gradio UI components for the Resize tool.
+        
+        The UI includes controls for output directory, filename prefix/suffix, output extension, maximum dimension, and overwrite option, plus a primary "Resize Images" button. The returned inputs list is ordered for event wiring.
+        
+        Returns:
+            tuple: A pair (run_button, inputs) where `run_button` is the Gradio Button that triggers the resize action, and `inputs` is a list of the input components in this order: [Max Dimension (px), Output Directory, Output Filename Prefix, Output Filename Suffix, Output Extension, Overwrite].
+        """
         
         gr.Markdown(self.config.description)
         
@@ -151,17 +168,17 @@ Images smaller than the target are NOT upscaled.
     def _resize_image_file(self, image_path: str, max_dimension: int, output_path: str = None, 
                            overwrite: bool = True) -> tuple:
         """
-        Resize a single image.
-        
-        Args:
-            image_path: Path to source image
-            max_dimension: Maximum dimension in pixels
-            output_path: Path to save resized image (None = overwrite source)
-            overwrite: Whether to overwrite existing files
-            
-        Returns:
-            tuple: (success: bool, message: str)
-        """
+                           Resize a single image file to fit within max_dimension while preserving aspect ratio.
+                           
+                           Parameters:
+                               image_path (str): Path to the source image file.
+                               max_dimension (int): Maximum width or height in pixels; the image's larger edge will be scaled to this value when resizing.
+                               output_path (str, optional): Destination path to save the resized (or copied) image. If None, the source file is the target (overwrite behavior applies).
+                               overwrite (bool, optional): If False and the target exists and differs from the source, the operation is skipped.
+                           
+                           Returns:
+                               tuple: (success: bool, message: str) where `success` is True when the image was resized or copied to the target, False when skipped or on error; `message` describes the outcome (e.g., "Resized", "Copied (No Resize)", "Skipped (Exists)", "Skipped (Small Enough)", or an error string).
+                           """
         import os
         try:
             target = output_path if output_path else image_path

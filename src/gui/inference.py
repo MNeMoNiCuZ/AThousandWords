@@ -9,8 +9,34 @@ def build_inference_args(app, model_id, model_ver, batch, tokens, dynamic_settin
                          pre, suf, over, rec, con, unload, clean, collapse, norm, rm_cn, loop, 
                          w, h, limit, out_dir_glob, out_fmt):
     """
-    Construct arguments dictionary for runs and CLI generation.
-    """
+                         Builds an inference arguments dictionary by merging model defaults with dynamic and explicit overrides.
+                         
+                         Parameters:
+                             model_id (str): Identifier of the model whose defaults are used.
+                             model_ver (str | None): Explicit model version to set, if provided.
+                             batch (int | None): Batch size override.
+                             tokens (int | None): Maximum tokens override.
+                             dynamic_settings (dict | None): Mapping of option names to values; entries with value None are ignored.
+                             pre (str | None): Text prefix to set for generated captions.
+                             suf (str | None): Text suffix to set for generated captions.
+                             over (bool | None): Whether to overwrite existing output files.
+                             rec (bool | None): Whether to recurse directories when scanning input.
+                             con (bool | None): Whether to print progress to the console.
+                             unload (bool | None): Whether to unload the model after inference.
+                             clean (bool | None): Whether to enable text cleaning.
+                             collapse (bool | None): Whether to collapse consecutive newlines in text.
+                             norm (bool | None): Whether to normalize text.
+                             rm_cn (bool | None): Whether to remove Chinese characters from text.
+                             loop (bool | None): Whether to strip loop markers from filenames/text.
+                             w (int | None): Maximum image width; if falsy, `max_width` is set to None.
+                             h (int | None): Maximum image height; if falsy, `max_height` is set to None.
+                             limit (int | None): Limit on processed items (sets `limit_count`).
+                             out_dir_glob (str | None): Output directory path or glob to set.
+                             out_fmt (str | None): Output format string to set.
+                         
+                         Returns:
+                             dict: Assembled arguments dictionary ready for inference or CLI use, including merged defaults, overrides, image/text processing settings, execution flags, output settings, and a `gpu_vram` entry from global settings (default 24).
+                         """
     # Get defaults
     model_config = app.config_mgr.get_model_config(model_id)
     args_dict = model_config.get('defaults', {}).copy()
@@ -60,8 +86,15 @@ def build_inference_args(app, model_id, model_ver, batch, tokens, dynamic_settin
 
 def validate_run_state(app, model_id) -> bool:
     """
-    Validate run requirements.
-    Results in Warning if invalid.
+    Validate that a dataset with compatible media is loaded for the specified model.
+    
+    Emits a Gradio warning describing the problem when validation fails (no media, no valid image/video files, or model-media incompatibility).
+    
+    Parameters:
+        model_id (str): Identifier of the target model whose supported media types will be checked.
+    
+    Returns:
+        `true` if the dataset contains media compatible with the model, `false` otherwise.
     """
     if not app.dataset or not app.dataset.images:
         gr.Warning("No media found. Please load a folder or add images to the 'Input Source'.")
@@ -92,7 +125,12 @@ def validate_run_state(app, model_id) -> bool:
 
 def validate_dataset_only(app) -> bool:
     """
-    Validate dataset is loaded.
+    Check that a dataset containing at least one image is loaded.
+    
+    Displays a Gradio warning if no dataset or no images are present.
+    
+    Returns:
+        True if a dataset with at least one image is loaded, False otherwise.
     """
     if not app.dataset or not app.dataset.images:
         gr.Warning("No media found. Please load a folder first.")
@@ -102,9 +140,13 @@ def validate_dataset_only(app) -> bool:
 
 def start_processing(is_valid):
     """
-    Update UI on run start:
-    1. Run Button -> "Processing...", Disabled
-    2. Download Button -> Show wrapper, set button to Processing state (spinner)
+    Set UI state for starting or aborting a run.
+    
+    Parameters:
+        is_valid (bool): Whether the run inputs are valid; if False the UI is reset to the idle state, if True the UI is set to a processing state.
+    
+    Returns:
+        tuple: A 3-tuple of Gradio update objects in the order (run_button_update, download_wrapper_visibility_update, download_button_update).
     """
     if not is_valid:
         return (
@@ -127,12 +169,19 @@ def start_processing(is_valid):
 
 def run_with_dynamic_state(app, build_args_fn, *args):
     """
-    Execute inference with dynamic state and return UI updates.
+    Run inference using dynamically built arguments and produce UI update objects for the Gradio interface.
     
-    Args:
-        app: CaptioningApp instance
-        build_args_fn: Function to build inference args
-        *args: Input arguments (last one is validation state)
+    Parameters:
+        app: CaptioningApp-like object providing run_inference and current_model_id.
+        build_args_fn: Function that accepts the provided input arguments (excluding the final validation flag) and returns an args dictionary for inference.
+        *args: Positional inputs where the final element is a boolean validation flag; preceding elements are passed to build_args_fn.
+    
+    Returns:
+        tuple: (gallery_data, run_button_update, download_group_update, download_button_update)
+            - gallery_data: Data to populate the results gallery.
+            - run_button_update: Gradio update for the Run button (resets label and interactivity).
+            - download_group_update: Gradio update controlling visibility of the download group.
+            - download_button_update: Gradio update configuring the download button (visibility, label, styling).
     """
     is_valid = args[-1]
     if not is_valid:
@@ -196,4 +245,3 @@ def run_with_dynamic_state(app, build_args_fn, *args):
         )
 
     return gallery_data, gr.update(value="Run Captioning", interactive=True), dl_grp, dl_btn
-

@@ -90,7 +90,12 @@ class JoyCaptionWrapper(BaseCaptionModel):
         self.processor = None
     
     def _load_beta_one_components(self, model_id: str):
-        """Load Beta-One specific components (processor)."""
+        """
+        Initialize Beta-One components for the wrapper: load an AutoProcessor for the given model ID, ensure the processor's tokenizer has a pad token for batched padding, attempt to apply optional Liger kernel optimizations to the language model, and clear Alpha-Two–specific attributes.
+        
+        Parameters:
+            model_id (str): Pretrained model identifier or local path to load the processor from.
+        """
         from transformers import AutoProcessor
         
         self.processor = AutoProcessor.from_pretrained(model_id)

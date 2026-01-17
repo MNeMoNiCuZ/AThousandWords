@@ -9,13 +9,17 @@ from src.tools import get_all_tools
 
 
 def create_tools_tab(app) -> dict:
-    """Create Tools tab with auto-discovered tools.
+    """
+    Builds a Tools tab container and instantiates GUIs for all discovered tools.
     
-    Args:
-        app: CaptioningApp instance
-        
+    Parameters:
+        app: The application instance passed to each tool's GUI creation function.
+    
     Returns:
-        dict of tool_name -> {tool, run_btn, inputs}
+        dict: Mapping from tool name (str) to a dict with keys:
+            - "tool": the tool object
+            - "run_btn": the tool's run button component
+            - "inputs": the tool's input component(s)
     """
     tool_components = {}
     
@@ -33,12 +37,16 @@ def create_tools_tab(app) -> dict:
 
 
 def wire_tool_events(app, tool_components: dict, gallery_output: gr.Gallery):
-    """Wire tool events after gallery is created.
+    """
+    Attach each discovered tool's event handlers to its run button and input components so tool outputs are sent to the provided gallery.
     
-    Args:
-        app: CaptioningApp instance
-        tool_components: dict from create_tools_tab
-        gallery_output: Gallery component for outputs
+    Parameters:
+        app: The application instance used by tools (e.g., CaptioningApp).
+        tool_components (dict): Mapping from tool name to a dict with keys:
+            - "tool": the tool object exposing `wire_events`.
+            - "run_btn": the tool's run button component.
+            - "inputs": the tool's input components.
+        gallery_output (gr.Gallery): The gallery component that receives tool outputs.
     """
     for tool_name, components in tool_components.items():
         tool = components["tool"]

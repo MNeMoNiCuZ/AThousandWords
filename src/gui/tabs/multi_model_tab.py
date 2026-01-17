@@ -5,13 +5,21 @@ import gradio as gr
 
 def create_multi_model_tab(app):
     """
-    Create the Multi-Model Captioning tab UI.
+    Builds the UI for the Multi-Model Captioning tab and returns references to its interactive components.
     
-    Args:
-        app: CaptioningApp instance
-        
+    Parameters:
+        app (CaptioningApp): Application instance used to populate available models and load saved multi-model settings.
+    
     Returns:
-        dict: Component references for event wiring
+        dict: Mapping of component names to Gradio component references:
+            - "checkboxes": dict[str, gr.Checkbox] — per-model enable/disable checkboxes keyed by model_id.
+            - "formats": dict[str, gr.Textbox] — per-model caption extension textboxes keyed by model_id.
+            - "select_all_btn": gr.Button — button that selects all model checkboxes.
+            - "deselect_all_btn": gr.Button — button that deselects all model checkboxes.
+            - "save_btn": gr.Button — button that saves current multi-model settings.
+            - "gen_cmd_btn": gr.Button — button that toggles generation/visibility of the command output.
+            - "run_btn": gr.Button — primary button that starts the multi-model captioning run.
+            - "cmd_output": gr.Textbox — read-only textbox used to display generated commands.
     """
     gr.Markdown("### 🤖 Multi-Model Processing")
     gr.Markdown("Run multiple models in sequence on the same dataset.")
@@ -85,14 +93,22 @@ def create_multi_model_tab(app):
 
 def wire_multi_model_events(app, components, gal, limit_count, multi_run_valid_state):
     """
-    Wire event handlers for the Multi-Model tab.
+    Wire interactive event handlers connecting the Multi-Model tab UI to app logic.
     
-    Args:
-        app: CaptioningApp instance
-        components: Dict from create_multi_model_tab
-        gal: Gallery component
-        limit_count: Limit count input
-        multi_run_valid_state: State for validating run
+    Parameters:
+        app (CaptioningApp): Application instance providing model list, persistence, command generation, and inference methods.
+        components (dict): Mapping of UI component references returned by create_multi_model_tab; expected keys include
+            "checkboxes" (dict of per-model Checkbox components), "formats" (dict of per-model Textbox components),
+            "select_all_btn", "deselect_all_btn", "save_btn", "gen_cmd_btn", "run_btn", and "cmd_output".
+        gal (gr.components.Gallery): Gallery component to receive inference results.
+        limit_count: UI input controlling the maximum runs per model (passed through to inference).
+        multi_run_valid_state (gr.State): State component used to carry validation status into the run chain.
+    
+    Behavior:
+        - Binds Select All / Deselect All buttons to toggle every model checkbox.
+        - Connects Save Settings button to persist current checkbox and format inputs via app.save_multi_model_settings.
+        - Toggles generation and visibility of the command output via the Generate Command button, using app.generate_multi_model_commands.
+        - Validates that media is loaded before running; updates Run button state and then invokes app.run_multi_model_inference with all model inputs, writing results to the provided Gallery.
     """
     import gradio as gr
     
@@ -105,6 +121,12 @@ def wire_multi_model_events(app, components, gal, limit_count, multi_run_valid_s
     
     # Select All
     def select_all():
+        """
+        Set every model checkbox to checked.
+        
+        Returns:
+            list: A list of Gradio update objects that set each model checkbox to checked.
+        """
         return [gr.update(value=True) for _ in app.models]
     
     components["select_all_btn"].click(
@@ -115,6 +137,12 @@ def wire_multi_model_events(app, components, gal, limit_count, multi_run_valid_s
     
     # Deselect All
     def deselect_all():
+        """
+        Create UI updates that set every model checkbox to False.
+        
+        Returns:
+            list: A list of Gradio update objects, one per model, each setting the checkbox `value` to `False`.
+        """
         return [gr.update(value=False) for _ in app.models]
     
     components["deselect_all_btn"].click(
@@ -134,6 +162,19 @@ def wire_multi_model_events(app, components, gal, limit_count, multi_run_valid_s
     cmd_visible_state = gr.State(value=False)
     
     def gen_cmd_toggle(current_visible, *args):
+        """
+        Toggle the generated command output visibility and update associated UI elements.
+        
+        Parameters:
+            current_visible (bool): Whether the command output is currently visible.
+            *args: Values forwarded to app.generate_multi_model_commands to produce the command text.
+        
+        Returns:
+            tuple: (cmd_output_update, visible_state, gen_btn_update)
+                - cmd_output_update: Gradio update for the command textbox (sets `value` and `visible`).
+                - visible_state (bool): `True` if the command output is visible after the toggle, `False` otherwise.
+                - gen_btn_update: Gradio update for the Generate Command button label.
+        """
         if current_visible:
             return gr.update(value="", visible=False), False, gr.update(value="Generate Command")
         cmd = app.generate_multi_model_commands(*args)
@@ -147,17 +188,43 @@ def wire_multi_model_events(app, components, gal, limit_count, multi_run_valid_s
     
     # Run Captioning with validation
     def validate_run():
+        """
+        Check that the application has a loaded dataset containing images.
+        
+        Displays a Gradio warning if no media is loaded.
+        
+        Returns:
+            bool: `True` if a dataset with images is available, `False` otherwise.
+        """
         if not app.dataset or not app.dataset.images:
             gr.Warning("No media loaded. Please load a folder first.")
             return False
         return True
     
     def start_processing(is_valid):
+        """
+        Update the Run button's label and interactivity based on whether a run is valid.
+        
+        Parameters:
+            is_valid (bool): True if run validation passed; False otherwise.
+        
+        Returns:
+            gr.update: An update object that sets the button to "Processing..." and disables interaction when `is_valid` is True; otherwise resets the label to "Run Captioning" and makes it interactive.
+        """
         if not is_valid:
             return gr.update(value="Run Captioning", interactive=True)
         return gr.update(value="Processing...", interactive=False)
     
     def run_wrapper(*inputs):
+        """
+        Execute the multi-model inference call when the preceding validation step indicates the run is allowed.
+        
+        Parameters:
+            *inputs: A sequence where the last element is a boolean `is_valid` flag produced by validation, and the preceding elements are the actual arguments to pass to `app.run_multi_model_inference`.
+        
+        Returns:
+            If `is_valid` is false, a Gradio update object that makes no UI changes. Otherwise, the value returned by `app.run_multi_model_inference` (typically the output to update the gallery).
+        """
         is_valid = inputs[-1]
         real_inputs = inputs[:-1]
         if not is_valid:
@@ -185,13 +252,29 @@ def wire_multi_model_events(app, components, gal, limit_count, multi_run_valid_s
 
 
 def get_multi_model_reload_handler(app, components):
-    """Return a function to reload multi-model settings on page load."""
+    """
+    Create a loader function that repopulates the multi-model UI from saved settings.
+    
+    Parameters:
+        components (dict): Mapping with keys "checkboxes" and "formats", each mapping model_id to the corresponding Gradio component to update.
+    
+    Returns:
+        tuple:
+            - load_settings (callable): A zero-argument function that loads saved multi-model settings and returns a list of Gradio update objects: first the checkbox values (enabled state) for each model in app.models order, then the per-model format strings.
+            - outputs (list): List of the Gradio components (checkboxes followed by format textboxes) that the loader updates.
+    """
     import gradio as gr
     
     checkboxes = components["checkboxes"]
     formats = components["formats"]
     
     def load_settings():
+        """
+        Load saved multi-model settings and produce Gradio update objects to restore each model's enabled state and per-model format.
+        
+        Returns:
+            list: A list of Gradio update objects where the first N entries set each model checkbox's value (enabled state) and the next N entries set each model format textbox's value (format extension), in the same order as app.models.
+        """
         saved_settings = app.load_multi_model_settings()
         updates = []
         for idx in range(len(app.models)):
@@ -204,4 +287,3 @@ def get_multi_model_reload_handler(app, components):
     
     outputs = list(checkboxes.values()) + list(formats.values())
     return load_settings, outputs
-

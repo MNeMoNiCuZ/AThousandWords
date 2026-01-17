@@ -18,12 +18,29 @@ except ImportError:
 
 
 def sanitize_model_name(model_id: str) -> str:
-    """Convert model ID to sanitized output format extension."""
+    """
+    Produce a filesystem- and extension-safe string from a model identifier by removing all characters except letters, digits, and underscores.
+    
+    Returns:
+        sanitized (str): The input `model_id` with all characters other than A–Z, a–z, 0–9, and underscore removed.
+    """
     return re.sub(r'[^a-zA-Z0-9_]', '', model_id)
 
 
 def load_multi_model_settings(config_mgr, models):
-    """Load multi-model configuration from user_config.yaml"""
+    """
+    Load per-model multi-model settings from the user's configuration.
+    
+    If the `multi_model` section or its keys are missing, defaults are used: models are disabled by default and each model's output format defaults to a sanitized version of its model id.
+    
+    Parameters:
+        models (Iterable[str]): Ordered collection of model identifiers to retrieve settings for.
+    
+    Returns:
+        list[tuple[bool, str]]: A list of (enabled, format_ext) tuples in the same order as `models`.
+            `enabled` is `True` when the model is listed in the saved `enabled_models`; otherwise `False`.
+            `format_ext` is the configured output format for the model or the sanitized model id when not set.
+    """
     config_mgr.user_config = config_mgr._load_yaml(config_mgr.user_config_path)
     
     multi_config = config_mgr.user_config.get('multi_model', {})
@@ -40,7 +57,21 @@ def load_multi_model_settings(config_mgr, models):
 
 
 def save_multi_model_settings(config_mgr, models, *inputs):
-    """Save multi-model configuration to user_config."""
+    """
+    Persist multi-model UI settings into the user's configuration and save them to disk.
+    
+    Updates config_mgr.user_config['multi_model'] with:
+    - enabled_models: list of model IDs whose corresponding checkbox input is truthy
+    - output_formats: mapping of model_id -> user-specified format for formats that differ from the default sanitized model name
+    
+    Parameters:
+        models (list[str]): Ordered list of model IDs corresponding to the UI rows.
+        *inputs: Layout is the first len(models) values as checkbox booleans (enabled flags),
+            followed by len(models) values of per-model output format strings.
+    
+    Returns:
+        list: An empty list (returned for Gradio callback compatibility).
+    """
     from .constants import filter_user_overrides
     
     num_models = len(models)
@@ -73,7 +104,17 @@ def save_multi_model_settings(config_mgr, models, *inputs):
 
 
 def generate_multi_model_commands(app, *inputs):
-    """Generate CLI commands for all enabled models."""
+    """
+    Generate a combined CLI script for all enabled models from the current UI inputs.
+    
+    For each enabled model this constructs a CLI command using the global settings, the model's configured defaults, and the model's specified output format, then returns all commands concatenated with newline separators.
+    
+    Parameters:
+    	inputs (tuple): UI values where the first len(app.models) items are selection checkboxes (truthy to enable a model) and the remaining items are per-model output format strings.
+    
+    Returns:
+    	str: The combined CLI commands separated by newlines, or the string "No models selected!" if no models are enabled.
+    """
     num_models = len(app.models)
     checkboxes = inputs[:num_models]
     formats = inputs[num_models:]
@@ -105,7 +146,19 @@ def generate_multi_model_commands(app, *inputs):
 
 
 def generate_multi_model_commands_with_settings(app, current_settings, checkboxes, formats):
-    """Generate CLI commands using current UI settings."""
+    """
+    Generate a combined CLI script for the enabled models using the provided UI settings.
+    
+    Parameters:
+        app: Application instance providing model list, config manager, and CLI generation helpers.
+        current_settings (dict): Overrides to apply to global settings when building per-model arguments.
+        checkboxes (Iterable[bool]): Sequence indicating which models (by index in app.models) are enabled.
+        formats (Iterable[str]): Per-model output format strings (unused by this function; accepted for API compatibility).
+    
+    Returns:
+        str: A newline-separated string containing a header and CLI command for each enabled model, or
+        "No models selected!" if no checkboxes are truthy.
+    """
     enabled_models = [app.models[i] for i, c in enumerate(checkboxes) if c]
     
     if not enabled_models:
@@ -133,7 +186,24 @@ def generate_multi_model_commands_with_settings(app, current_settings, checkboxe
 
 
 def run_multi_model_inference(app, *inputs):
-    """Run multiple models sequentially on the dataset."""
+    """
+    Execute selected models sequentially on the currently loaded dataset and update the UI with progress and a final summary.
+    
+    Inputs:
+    - The varargs `inputs` must be laid out as:
+      1) One boolean checkbox per model in `app.models` (selects which models to run),
+      2) One output format string per model (same order as `app.models`),
+      3) A final `limit_count` value (applies to each model run).
+    
+    Behavior:
+    - If no models are selected or no images are loaded, a Gradio warning is emitted and the gallery is returned unchanged.
+    - Runs each enabled model in order, building per-model args from global settings plus the model's selected output format and the provided `limit_count`.
+    - Individual model failures are caught and reported; remaining models continue to run.
+    - Prints console progress for each model and a final summary, and shows a Gradio Info panel titled "Multi-Model Complete".
+    
+    Returns:
+    - The gallery data from `app._get_gallery_data()` to refresh the UI.
+    """
     limit_count = inputs[-1]
     
     num_models = len(app.models)

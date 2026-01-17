@@ -10,7 +10,25 @@ logger = logging.getLogger("GUI")
 
 
 def run_inference(app, mod, args):
-    """Run inference on the dataset."""
+    """
+    Execute a model inference run using the application's current dataset and UI settings.
+    
+    Performs argument defaults (e.g., fills `gpu_vram` from global settings, defaults `output_dir` for drag-and-drop), analyzes input paths (detects common input root, mixed sources, and filename collisions), optionally limits the dataset using `limit_count`, runs the model via the model registry, and packages generated outputs (attempts to create a zip). On filename collisions without a common root or when no input images are available, the function aborts early and returns the current gallery state. Memory-related runtime errors trigger a CUDA OOM warning and an early abort; other failures are reported as `gr.Error`.
+    
+    Parameters:
+        app: The application instance providing dataset, configuration manager, CLI generation, zipping, and GUI helpers.
+        mod: Model identifier or descriptor used to load the model wrapper for execution.
+        args (dict): CLI-style arguments for the run. Relevant keys include `gpu_vram`, `output_dir`, and `limit_count`; `input_root` may be set by this function.
+    
+    Returns:
+        tuple: (gallery_data, zip_update, stats)
+            - gallery_data: current gallery state from the application (used to refresh the UI).
+            - zip_update: a Gradio update object controlling visibility/value of the download zip (visible with `value` set to zip path when a zip is created, otherwise hidden).
+            - stats: a dictionary of run statistics returned by the model wrapper (or an empty dict on early abort).
+    
+    Raises:
+        gr.Error: If processing fails for reasons other than recognized GPU out-of-memory errors, a `gr.Error` is raised with the failure message.
+    """
     if "gpu_vram" not in args:
         settings = app.config_mgr.get_global_settings()
         args["gpu_vram"] = settings['gpu_vram']

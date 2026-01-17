@@ -7,8 +7,16 @@ logger = logging.getLogger("GUI.Logic")
 
 def resolve_model_values(app, model_id: str, version_override: Optional[str] = None) -> Dict[str, Any]:
     """
-    Determine effective model parameters.
-    Priority: Version Override > Saved Config > Model Defaults.
+    Resolve the effective parameter set for a model by combining defaults and saved user settings.
+    
+    Determines the active model version with priority: explicit version_override > saved user setting (validated) > model defaults; supports both nested per-version ("new style") and flat ("old style") saved configurations, and will remove invalid saved version entries from user config. The returned mapping is defaults merged with any per-version saved overrides and includes 'model_version' when determined.
+    
+    Parameters:
+        model_id (str): Identifier of the model whose values to resolve.
+        version_override (Optional[str]): Explicit version to use instead of saved or default version.
+    
+    Returns:
+        Dict[str, Any]: Resolved model parameter dictionary (defaults merged with saved overrides). Contains 'model_version' when a version could be determined.
     """
     config = app.config_mgr.get_model_config(model_id)
     saved_model_root = app.config_mgr.user_config.get('model_settings', {}).get(model_id, {})
@@ -109,7 +117,28 @@ def resolve_model_values(app, model_id: str, version_override: Optional[str] = N
 
 
 def update_model_ui(app, mod_id):
-    """Update UI components based on selected model."""
+    """
+    Builds Gradio UI update states for controls based on the selected model's configuration and capabilities.
+    
+    If `mod_id` is falsy, returns placeholder updates for all controls.
+    
+    Parameters:
+        mod_id (str): Identifier of the model whose config and defaults drive the UI state.
+    
+    Returns:
+        list: A list of 11 Gradio `update` objects in the following order:
+            0. Temperature control (visibility, value)
+            1. Top-k control (visibility, value)
+            2. Max tokens control (visibility, value)
+            3. Repetition penalty control (visibility, value)
+            4. Detail mode control (visibility, value)
+            5. Include-thinking toggle (visibility, value)
+            6. Strip-thinking-tags toggle (visibility, value)
+            7. Prompt preset selector (visibility, choices, value)
+            8. Recommended batch size (value, info tooltip)
+            9. System prompt value
+            10. Task prompt value
+    """
     import gradio as gr
     
     if not mod_id:
@@ -155,7 +184,12 @@ def update_model_ui(app, mod_id):
 
 
 def apply_preset(app, mod_id, preset_name):
-    """Apply a prompt preset."""
+    """
+    Apply the named prompt preset for the specified model to a Gradio input.
+    
+    Returns:
+        gr.update: An update that sets the input value to the preset text when the preset exists for the model; otherwise a neutral update (no change).
+    """
     import gradio as gr
     
     if not mod_id or not preset_name:
@@ -170,10 +204,12 @@ def apply_preset(app, mod_id, preset_name):
 
 def get_initial_model_state(app, model_id: str) -> Dict[str, Any]:
     """
-    Resets settings_state to a fresh dictionary containing ONLY the current model's defaults.
-    This prevents:
-    1. Stale values from previous models persisting if the user clicks Run immediately.
-    2. Feature pollution (accumulation of keys from all verified models).
+    Reset and return the model-scoped settings to a fresh state based on the model's defaults.
+    
+    If `model_id` is falsy, returns an empty dict.
+    
+    Returns:
+        resolved_state (Dict[str, Any]): A dictionary containing only the current model's default settings, merged with any valid saved overrides for that model.
     """
     if not model_id:
         return {}

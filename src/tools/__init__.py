@@ -36,14 +36,12 @@ _EXCLUDED_FILES = {
 
 def _discover_tools() -> dict:
     """
-    Scan the tools directory for valid tool implementations.
+    Discover and instantiate tool classes under the src.tools package.
     
-    Looks for .py files in src/tools/ that contain classes
-    inheriting from BaseTool. Each valid tool is instantiated
-    and added to the registry.
+    Searches .py files in this module's directory (skipping files listed in _EXCLUDED_FILES), imports each module, and for each class defined in that module that subclasses BaseTool (excluding BaseTool itself) attempts to instantiate it and register it by the instance's name. Import and instantiation failures are logged but do not stop discovery.
     
     Returns:
-        dict: {tool_name: tool_instance}
+        dict: Mapping of tool name to the instantiated tool object (e.g., {tool_name: tool_instance}).
     """
     tools = {}
     tools_dir = Path(__file__).parent
@@ -84,13 +82,13 @@ TOOL_REGISTRY = _discover_tools()
 
 def get_tool(name: str) -> BaseTool:
     """
-    Get a tool instance by name.
+    Retrieve a registered tool by its name.
     
-    Args:
-        name: Tool name (e.g., "metadata", "resize")
-        
+    Parameters:
+        name (str): The registry key for the tool (e.g., "metadata", "resize").
+    
     Returns:
-        BaseTool instance or None if not found
+        BaseTool or None: The tool instance matching `name`, or `None` if not found.
     """
     return TOOL_REGISTRY.get(name)
 
@@ -107,9 +105,9 @@ def get_all_tools() -> dict:
 
 def refresh_tools() -> None:
     """
-    Re-scan for tools.
+    Refresh the module tool registry by rescanning the tools directory for tool implementations.
     
-    Useful after adding new tool files without restarting the app.
+    Rebuilds TOOL_REGISTRY with newly discovered tool instances and logs the number of tools found.
     """
     global TOOL_REGISTRY
     TOOL_REGISTRY = _discover_tools()

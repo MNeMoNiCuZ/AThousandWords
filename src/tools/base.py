@@ -68,17 +68,34 @@ class BaseTool(ABC):
     @property
     @abstractmethod
     def config(self) -> ToolConfig:
-        """Return tool configuration. Must be implemented by subclasses."""
+        """
+        Provide the tool's configuration.
+        
+        Subclasses must override this property to return a ToolConfig describing the tool.
+        
+        Returns:
+            ToolConfig: Metadata for the tool, including `name`, `display_name`, `description`, and `icon`.
+        """
         pass
     
     @property
     def name(self) -> str:
-        """Return tool name."""
+        """
+        Tool's internal identifier.
+        
+        Returns:
+            str: The tool's internal name from its configuration.
+        """
         return self.config.name
     
     @property
     def display_name(self) -> str:
-        """Return tool display name for UI."""
+        """
+        Tool display name shown in the UI.
+        
+        Returns:
+            display_name (str): The label shown on the tool's UI tab.
+        """
         return self.config.display_name
     
     @abstractmethod
@@ -98,35 +115,30 @@ class BaseTool(ABC):
     @abstractmethod
     def create_gui(self, app) -> tuple:
         """
-        Create Gradio UI components for this tool.
+        Create and return the Gradio UI components for this tool's tab.
         
-        This method is called inside the tool's tab context.
-        It must create all UI elements and return them for later event wiring.
+        Parameters:
+            app: The CaptioningApp instance providing access to the application state and dataset.
         
-        Args:
-            app: CaptioningApp instance for accessing dataset/config
-            
         Returns:
-            tuple: (run_button, list_of_input_components)
+            tuple: (run_button, list_of_input_components) where `run_button` is the primary trigger component and `list_of_input_components` is a list of Gradio input elements to be wired to the handler.
         """
         pass
     
     def wire_events(self, app, run_button, inputs: list, gallery_output: gr.Gallery,
                     limit_count=None) -> None:
         """
-        Wire up events after all components are created.
-        
-        Called after the gallery component exists.
-        Default implementation wires run_button to apply_to_dataset.
-        Applies limit_count to dataset if provided.
-        
-        Args:
-            app: CaptioningApp instance
-            run_button: The button that triggers the tool
-            inputs: List of input components
-            gallery_output: The gallery to update after tool runs
-            limit_count: Optional limit_count component from Input Source
-        """
+                    Connect the provided UI controls so the tool executes against the app's dataset and updates the gallery.
+                    
+                    Wires the run_button to a handler that validates a loaded dataset, optionally limits the number of images using the value from `limit_count`, calls the tool's `apply_to_dataset` with the configured inputs, displays the result to the user, and returns updated gallery data to refresh `gallery_output`.
+                    
+                    Parameters:
+                        app: The application instance providing `dataset` (with `.images`) and `_get_gallery_data()` used to obtain gallery state.
+                        run_button: The Gradio button component that will trigger tool execution.
+                        inputs (list): List of Gradio input components whose values are passed to `apply_to_dataset`.
+                        gallery_output: The Gradio Gallery component to be refreshed after the tool runs.
+                        limit_count: Optional Gradio input component; when provided its value limits how many images from `app.dataset.images` are processed.
+                    """
         import copy
         tool_name = self.config.display_name
         
@@ -143,6 +155,20 @@ class BaseTool(ABC):
             all_inputs.append(limit_count)
         
         def run_handler(*args):
+            """
+            Handle the run button click: validate dataset, optionally limit images, invoke the tool, and return updated gallery data.
+            
+            Parameters:
+                *args: Values from the tool's input components. If a `limit_count` input was provided to wire_events, its value is appended as the last argument.
+            
+            Returns:
+                The gallery data structure to refresh the UI.
+                
+            Behavior:
+                - If no dataset or no images are loaded, shows a Gradio warning and returns the current gallery data.
+                - If a `limit_count` value is present and can be parsed as an integer > 0, the dataset passed to the tool is limited to that many images.
+                - Calls the tool's `apply_to_dataset` with the (possibly limited) dataset and the tool input values (excluding the optional limit), displays the returned result via Gradio, and returns the updated gallery data.
+            """
             if not app.dataset or not app.dataset.images:
                 gr.Warning("No images loaded. Please load a folder in Input Source first.")
                 return app._get_gallery_data()
@@ -188,4 +214,10 @@ class BaseTool(ABC):
         )
     
     def __repr__(self) -> str:
+        """
+        Return a concise developer-facing representation of the tool instance.
+        
+        Returns:
+            A string in the form `ClassName(name=internal_name)` describing the instance.
+        """
         return f"{self.__class__.__name__}(name={self.config.name})"

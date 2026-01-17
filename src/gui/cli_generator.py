@@ -8,17 +8,17 @@ logger = logging.getLogger("GUI.CLI")
 
 def generate_cli_command(config_mgr, mod, args, current_input_path, skip_defaults=True):
     """
-    Generate CLI command without running inference.
+    Constructs a command-line invocation for the captioner that mirrors the provided GUI options.
     
-    Args:
-        config_mgr: ConfigManager instance
-        mod: Model ID
-        args: Dictionary of arguments
-        current_input_path: Current input path for dataset
-        skip_defaults: If True, skip parameters that match defaults
-        
+    Parameters:
+        config_mgr: ConfigManager used to fetch the model's configuration and defaults.
+        mod: Model identifier to include via `--model`.
+        args: Dictionary of GUI-supplied option names and values used to override feature defaults.
+        current_input_path: Filesystem path to pass as the `--input` argument.
+        skip_defaults: If True, omit options whose value equals the feature default (booleans are always considered and rendered as flags when True).
+    
     Returns:
-        str: CLI command string
+        str: A ready-to-run CLI command string (e.g., `python captioner.py --model <mod> --input "<path>" ...`).
     """
     model_config = config_mgr.get_model_config(mod)
     

@@ -30,6 +30,12 @@ class BucketingTool(BaseTool):
     
     @property
     def config(self) -> ToolConfig:
+        """
+        Provide the ToolConfig metadata for the Bucketing tool used in the UI.
+        
+        Returns:
+            ToolConfig: Configuration for the tool with name "bucketing", display name "Bucketing", a short description about resolution bucketing, and an icon placeholder.
+        """
         return ToolConfig(
             name="bucketing",
             display_name="Bucketing",
@@ -51,7 +57,34 @@ class BucketingTool(BaseTool):
                          output_dir: str = "",
                          action: str = "analyze") -> str:
         
-        if not dataset or not dataset.images:
+        """
+                         Analyze a dataset of images for aspect-ratio bucketing and optionally organize or prune the images.
+                         
+                         Performs aspect-ratio analysis using either automatic bucketing or user-specified manual ratios, assigns images to buckets respecting tolerance and per-bucket limits, and generates an HTML report. Depending on `action`, the function will:
+                         - "analyze": return an HTML report only,
+                         - "organize": copy or move files into per-bucket folders under `output_dir` according to `file_action`,
+                         - "prune": balance buckets by moving excess images into the result's unassigned list and return a report.
+                         
+                         Parameters:
+                             dataset: Dataset-like object containing an iterable `images` attribute; each image entry should expose a filesystem path.
+                             num_buckets (int): Target number of buckets when using automatic bucketing.
+                             tolerance (float): Allowed percentage difference between an image's aspect ratio and a bucket's ratio for eligibility (e.g., 20.0 means ±20% tolerance).
+                             max_per_bucket (int): Maximum number of images to place in any single bucket.
+                             manual_buckets (str): Newline- or comma-separated manual ratio definitions in the form "W:H" (e.g., "16:9,4:3"); empty means automatic bucketing.
+                             create_landscape (bool): Include Landscape-orientation buckets when auto-generating buckets.
+                             create_portrait (bool): Include Portrait-orientation buckets when auto-generating buckets.
+                             create_square (bool): Include Square-orientation buckets when auto-generating buckets.
+                             min_resolution (int): Minimum allowed image maximum dimension (width or height) in pixels; images below this are flagged as too small.
+                             max_resolution (int): Maximum allowed image maximum dimension (width or height) in pixels; images above this are flagged as too large.
+                             unassigned_action (str): Behavior label for handling unassigned images in organization preview or when organizing (e.g., "Include in _unassigned").
+                             file_action (str): File operation to perform when organizing; expected values include "Copy" or "Move".
+                             output_dir (str): Destination directory used when `action` is "organize"; if empty, organization is not performed.
+                             action (str): One of "analyze", "organize", or "prune" determining the operation performed.
+                         
+                         Returns:
+                             str: HTML report summarizing analysis results, bucket summaries, ratio breakdowns, and organize/prune previews. When `action` is "organize", files may be copied or moved into `output_dir` as a side effect.
+                         """
+                         if not dataset or not dataset.images:
             gr.Warning("No images loaded.")
             return self._empty_state()
         
@@ -88,9 +121,26 @@ class BucketingTool(BaseTool):
         return self._generate_report(result, output_dir, file_action, unassigned_action)
     
     def _empty_state(self) -> str:
+        """
+        Return a minimal HTML message prompting the user to load images and start analysis.
+        
+        Returns:
+            html (str): A small HTML fragment with a user-facing prompt ("Load images and click Analyze.").
+        """
         return '<div style="padding:20px;color:#888;">Load images and click Analyze.</div>'
     
     def _get_image_size(self, path: Path) -> tuple:
+        """
+        Return the dimensions of an image file.
+        
+        Attempts to open the image at `path` and returns its size as a (width, height) tuple. Returns `None` if the file cannot be opened or read as an image.
+        
+        Parameters:
+            path (Path): Path to the image file.
+        
+        Returns:
+            tuple or None: `(width, height)` on success, `None` if the image is unreadable.
+        """
         try:
             with Image.open(path) as img:
                 return img.size
@@ -98,6 +148,15 @@ class BucketingTool(BaseTool):
             return None
     
     def _get_orientation(self, ratio: float) -> str:
+        """
+        Classify an aspect ratio as Landscape, Portrait, or Square.
+        
+        Parameters:
+            ratio (float): The aspect ratio computed as width divided by height.
+        
+        Returns:
+            str: "Landscape" if ratio > 1.1, "Portrait" if ratio < 0.9, otherwise "Square".
+        """
         if ratio > 1.1:
             return "Landscape"
         elif ratio < 0.9:
@@ -105,16 +164,44 @@ class BucketingTool(BaseTool):
         return "Square"
     
     def _get_ratio_string(self, w: int, h: int) -> str:
+        """
+        Produce a reduced aspect-ratio string from width and height.
+        
+        Parameters:
+            w (int): Image width in pixels.
+            h (int): Image height in pixels.
+        
+        Returns:
+            str: Aspect ratio in the form "W:G", where W and G are width and height divided by their greatest common divisor.
+        """
         g = gcd(w, h)
         return f"{w//g}:{h//g}"
     
     def _ratio_diff_pct(self, r1: float, r2: float) -> float:
+        """
+        Compute the percentage difference of r1 relative to r2.
+        
+        Parameters:
+        	r1 (float): First ratio (value to compare).
+        	r2 (float): Reference ratio (denominator for percentage calculation).
+        
+        Returns:
+        	percent_diff (float): Absolute percentage difference computed as abs(r1 - r2) / r2 * 100. Returns 100.0 if `r2` is zero.
+        """
         if r2 == 0:
             return 100.0
         return abs(r1 - r2) / r2 * 100
     
     def _parse_manual_ratio(self, ratio_str: str) -> tuple:
-        """Parse ratio string like '3:2' or '16:9' to (ratio_str, ratio_val)"""
+        """
+        Parse a manual aspect-ratio string of the form "W:H" into a normalized ratio string and its numeric value.
+        
+        Parameters:
+            ratio_str (str): Aspect-ratio text expected as two positive integers separated by a colon (e.g., "3:2", "16:9"); surrounding whitespace is allowed.
+        
+        Returns:
+            tuple or None: Tuple (ratio_str, ratio_value) where `ratio_str` is the trimmed "W:H" string and `ratio_value` is the numeric ratio W / H, or `None` if the input is invalid.
+        """
         try:
             parts = ratio_str.strip().split(':')
             if len(parts) != 2:
@@ -128,6 +215,23 @@ class BucketingTool(BaseTool):
             return None
     
     def _collect_image_data(self, dataset) -> list:
+        """
+        Collect readable image metadata from a dataset into a list of info dictionaries.
+        
+        Parameters:
+            dataset: An object with an iterable `images` attribute; each image must expose a `path` (Path or str) to the image file.
+        
+        Returns:
+            list: A list of dictionaries, one per successfully read image, each containing:
+                - path (str): Full image path.
+                - filename (str): Base filename.
+                - width (int): Image width in pixels.
+                - height (int): Image height in pixels.
+                - max_dim (int): Larger of width and height.
+                - ratio (float): Aspect ratio (width / height).
+                - ratio_str (str): Reduced aspect ratio as "W:G".
+                - orientation (str): One of "Landscape", "Portrait", or "Square" based on the ratio.
+        """
         data = []
         for img_obj in dataset.images:
             size = self._get_image_size(img_obj.path)
@@ -152,7 +256,35 @@ class BucketingTool(BaseTool):
                           bucket_orientations: set, min_res: int, max_res: int,
                           use_manual: bool, manual_buckets_str: str) -> dict:
         
-        result = {
+        """
+                          Analyze a collection of images and assign them into aspect-ratio buckets either from manual specifications or by selecting the most common ratios, applying tolerance and per-bucket limits.
+                          
+                          Parameters:
+                              image_data (list): List of image metadata dicts. Each dict is expected to contain at least
+                                  'path', 'filename', 'width', 'height', 'max_dim', 'ratio', 'ratio_str', and 'orientation'.
+                              num_buckets (int): Desired number of buckets when selecting automatically.
+                              tolerance (float): Maximum allowed percentage difference between an image ratio and a bucket ratio for eligibility.
+                              max_per_bucket (int): Maximum number of images to place into each bucket (<= 0 means no limit).
+                              bucket_orientations (set): Subset of {'Landscape', 'Portrait', 'Square'} to restrict which orientations are considered for bucket selection; empty set uses all orientations.
+                              min_res (int): Minimum allowed largest image dimension; images below this are recorded as resolution_low.
+                              max_res (int): Maximum allowed largest image dimension; images above this are recorded as resolution_high.
+                              use_manual (bool): If True, parse and use manual_buckets_str to create buckets; otherwise create buckets automatically.
+                              manual_buckets_str (str): Comma-separated manual ratios in the form "W:H" (e.g., "3:2,1:1").
+                          
+                          Returns:
+                              dict: A result dictionary containing:
+                                  - total (int): Total number of images processed.
+                                  - buckets (dict): Mapping from bucket ratio_str to bucket info dict with keys:
+                                      'name', 'ratio', 'ratio_str', 'orientation', 'representative', 'images' (assigned images list),
+                                      'eligible' (list of tuples (img, diff, match_pct)), and flags 'manual' or 'virtual' when applicable.
+                                  - resolution_low (list): Images with max_dim < min_res.
+                                  - resolution_high (list): Images with max_dim > max_res.
+                                  - outliers (list): Images whose best bucket match exceeds tolerance.
+                                  - unassigned (list): Images not placed into buckets (but within tolerance relative to their best bucket).
+                                  - ratio_summary (defaultdict): Per-ratio summary objects keyed by ratio_str; each contains
+                                      'images' (list), 'status' (one of 'bucket', 'ok', 'partial', 'outlier'), 'bucket' (assigned bucket name or None), and 'match_pct' (int 0-100).
+                          """
+                          result = {
             "total": len(image_data),
             "buckets": {},
             "resolution_low": [],
@@ -372,6 +504,25 @@ class BucketingTool(BaseTool):
         return result
     
     def _generate_report(self, result: dict, output_dir: str, file_action: str, unassigned_action: str) -> str:
+        """
+        Generate an HTML report summarizing bucketing analysis, including bucket tables, ratio summaries, lists of unassigned/outlier/resolution-issue images, and an organize preview.
+        
+        Parameters:
+            result (dict): Analysis result produced by _analyze_buckets. Expected keys include:
+                - total (int)
+                - buckets (dict): mapping bucket name -> bucket dict with keys "images", "eligible", "orientation", "ratio_str", "manual"
+                - outliers (list): images outside tolerance
+                - unassigned (list): images not placed in any bucket
+                - resolution_low (list): images below min resolution
+                - resolution_high (list): images above max resolution
+                - ratio_summary (dict): mapping ratio_str -> summary dict with "images", "status", "bucket", "match_pct"
+            output_dir (str): Path to the target output directory used in the organize preview; empty string disables path rendering.
+            file_action (str): Action label shown in the organize preview (e.g., "Copy" or "Move").
+            unassigned_action (str): User-selected handling for unassigned images; affects which preview folders (_unassigned, _issues) are shown.
+        
+        Returns:
+            str: An HTML string that presents counts, bucket breakdowns, per-ratio statistics, lists of unassigned/outlier/resolution items, and a preview of the proposed folder structure.
+        """
         html = ['<div style="font-family:system-ui,-apple-system,sans-serif;">']
         
         total = result["total"]
@@ -532,6 +683,18 @@ class BucketingTool(BaseTool):
         return ''.join(html)
     
     def _prune_to_balanced(self, result: dict, output_dir: str, file_action: str, unassigned_action: str) -> str:
+        """
+        Balance all buckets by reducing each to the size of the smallest bucket and moving excess images to `result["unassigned"]`.
+        
+        Parameters:
+            result (dict): Bucketing result structure; this function mutates `result["buckets"]` and appends moved images to `result["unassigned"]`.
+            output_dir (str): Directory used when generating the final report (passed through to the report generator).
+            file_action (str): File action label (e.g., "Copy" or "Move") passed to the report generator.
+            unassigned_action (str): Behavior for unassigned files passed to the report generator.
+        
+        Returns:
+            str: HTML report summarizing the post-prune state.
+        """
         counts = [len(b["images"]) for b in result["buckets"].values()]
         if not counts:
             gr.Warning("No buckets to prune.")
@@ -551,6 +714,24 @@ class BucketingTool(BaseTool):
         return self._generate_report(result, output_dir, file_action, unassigned_action)
     
     def _organize(self, result: dict, output_dir: str, file_action: str, unassigned_action: str) -> str:
+        """
+        Organize images from a bucketing result into per-bucket folders and optionally move/copy unassigned or problematic files.
+        
+        Parameters:
+            result (dict): Bucketing analysis output containing keys "buckets", "unassigned", "outliers", "resolution_low", and "resolution_high".
+            output_dir (str): Destination directory where bucket folders and special folders (_unassigned, _issues) will be created.
+            file_action (str): Either "Copy" or "Move"; determines whether files are copied or moved into the output folders.
+            unassigned_action (str): Controls handling of unassigned images; if this string contains "unassigned" (case-insensitive), unassigned images are placed into an "_unassigned" folder.
+        
+        Returns:
+            str: An HTML report generated by _generate_report summarizing the (post-)organization state.
+        
+        Notes:
+            - For each bucket with images, a folder named "<Orientation>_<W>x<H>" is created and images (and matching .txt sidecar files when present) are copied or moved there.
+            - If enabled, unassigned images are placed in "_unassigned".
+            - Outliers and resolution issues are collected into an "_issues" folder; duplicate source paths are skipped.
+            - File operation errors are logged or ignored per-file; the function proceeds without raising on individual file failures.
+        """
         out_path = Path(output_dir)
         out_path.mkdir(parents=True, exist_ok=True)
         copied = 0
@@ -616,6 +797,15 @@ class BucketingTool(BaseTool):
         return self._generate_report(result, output_dir, file_action, unassigned_action)
     
     def create_gui(self, app) -> tuple:
+        """
+        Create the Gradio user interface controls for the Bucketing tool and return the primary action button and a list of input widgets.
+        
+        Parameters:
+            app: Application context or UI container used to integrate the generated controls.
+        
+        Returns:
+            tuple: (analyze_btn, inputs) where `analyze_btn` is the main Analyze button control and `inputs` is a list of all created input widgets and related controls (used for wiring event handlers).
+        """
         gr.Markdown(self.config.description)
         
         gr.Markdown("**Bucket Settings**")
@@ -690,7 +880,27 @@ class BucketingTool(BaseTool):
     
     def wire_events(self, app, run_button, inputs: list, gallery_output: gr.Gallery,
                     limit_count=None) -> None:
-        import copy
+        """
+                    Attach GUI event handlers to the BucketingTool controls and bind Analyze/Prune/Organize actions.
+                    
+                    Binds click and change callbacks for the provided Gradio controls so user interactions run the tool (with optional dataset limiting), produce HTML reports, and print a concise run summary to the console. Handlers apply the current UI settings when invoking analysis, pruning, or organization flows and update the result output component.
+                    
+                    Parameters:
+                        app: Application object exposing the current dataset (app.dataset) used when running actions.
+                        run_button: Unused placeholder for compatibility with wiring call sites.
+                        inputs (list): Ordered list of Gradio input components expected as:
+                            [num_buckets, tolerance, max_per_bucket, manual_buckets,
+                             create_landscape, create_portrait, create_square,
+                             min_resolution, max_resolution, unassigned_action, file_action, output_dir,
+                             result_output, analyze_btn, prune_btn, organize_btn]
+                        gallery_output (gr.Gallery): Gallery component showing dataset thumbnails (not modified by this function).
+                        limit_count (Optional[int]): If provided, appended to callbacks and used to limit the number of images processed.
+                    
+                    Side effects:
+                        - Registers callbacks on analyze_btn, prune_btn, organize_btn and change events on key inputs.
+                        - Prints brief run summaries to stdout.
+                    """
+                    import copy
         
         # ANSI color codes
         CYAN = "\033[96m"
@@ -710,7 +920,21 @@ class BucketingTool(BaseTool):
             all_inputs.append(limit_count)
         
         def _get_limited_dataset(limit_val):
-            """Get dataset with limit applied."""
+            """
+            Return a dataset limited to the first `limit_val` images along with the number of images in the returned dataset.
+            
+            Parameters:
+                limit_val (int | str | None): Maximum number of images to include. If convertible to an integer greater than zero and smaller than the current dataset size, the returned dataset will contain only the first `limit_val` images. If `limit_val` is None, zero, non-positive, or not convertible to int, the full dataset is returned.
+            
+            Returns:
+                tuple: (run_dataset, count)
+                    - run_dataset: a dataset object containing up to `limit_val` images, or None if no dataset or no images are available.
+                    - count (int): number of images in `run_dataset` (0 if no dataset).
+            
+            Notes:
+                - If no dataset or no images are present, returns (None, 0).
+                - When a positive numeric limit is applied and reduces the dataset, a console message is printed indicating the applied limit.
+            """
             if not app.dataset or not app.dataset.images:
                 return None, 0
             
@@ -731,7 +955,14 @@ class BucketingTool(BaseTool):
             return run_dataset, len(run_dataset.images)
         
         def _print_summary(result_html):
-            """Extract and print summary from HTML result."""
+            """
+            Prints a concise colorized summary extracted from an HTML report.
+            
+            Parses the provided HTML report for total, assigned, unassigned, and outlier counts and prints a single-line summary to standard output.
+            
+            Parameters:
+                result_html (str): HTML report string containing summary metrics (e.g., "Total:", "Assigned:", "Unassigned:", "Outliers:").
+            """
             import re
             # Extract Total, Assigned, Outliers, etc from the HTML
             total_match = re.search(r'Total: (\d+)', result_html)
@@ -748,6 +979,28 @@ class BucketingTool(BaseTool):
         
         def analyze(*args):
             # Extract limit_val from end if limit_count was added
+            """
+            Run a bucketing analysis using positional GUI inputs and return the generated HTML report.
+            
+            Parameters:
+                args (tuple): Ordered values from the GUI controls:
+                    0: num_buckets (int | None) — number of buckets to create.
+                    1: tolerance (float | None) — allowable percent difference for matching ratios.
+                    2: max_per_bucket (int | None) — maximum images per bucket (0 or None = unlimited).
+                    3: manual_buckets (str) — manual ratio definitions (e.g., "3:2,1:1").
+                    4: create_landscape (bool) — include landscape buckets.
+                    5: create_portrait (bool) — include portrait buckets.
+                    6: create_square (bool) — include square buckets.
+                    7: min_resolution (int | None) — minimum allowed image dimension in pixels.
+                    8: max_resolution (int | None) — maximum allowed image dimension in pixels.
+                    9: unassigned_action (str) — behavior for unassigned images.
+                    10: file_action (str) — "Copy" or "Move" when organizing files.
+                    11: output_dir (str) — target directory for organize/prune actions.
+                    If a limit_count was provided when wiring events, an extra final value supplies the image limit.
+            
+            Returns:
+                str: HTML report produced by apply_to_dataset (or the empty-state HTML if no dataset is available).
+            """
             limit_val = args[-1] if limit_count is not None else None
             
             run_dataset, count = _get_limited_dataset(limit_val)
@@ -786,6 +1039,28 @@ class BucketingTool(BaseTool):
             return result
         
         def prune(*args):
+            """
+            Run the pruning workflow using provided GUI-style arguments, balance bucket sizes, and return the generated HTML report.
+            
+            Parameters:
+            	args: A sequence of inputs (typically from the GUI) in the following order:
+            		0: num_buckets (int or empty) — desired number of buckets.
+            		1: tolerance (float or empty) — percent tolerance for ratio matching.
+            		2: max_per_bucket (int or empty) — maximum images per bucket (0 for no limit).
+            		3: manual_buckets (str) — manual ratio definitions (e.g., "3:2,1:1").
+            		4: create_landscape (bool) — include landscape buckets.
+            		5: create_portrait (bool) — include portrait buckets.
+            		6: create_square (bool) — include square buckets.
+            		7: min_resolution (int or empty) — minimum allowed image dimension.
+            		8: max_resolution (int or empty) — maximum allowed image dimension.
+            		9: unassigned_action (str) — how to handle unassigned images.
+            		10: file_action (str) — "Copy" or "Move" when organizing files.
+            		11: output_dir (str) — directory for organize/prune outputs.
+            		If a module-level `limit_count` is set, an additional trailing value may be provided as the dataset limit.
+            
+            Returns:
+            	HTML report string summarizing the prune operation, bucket balances, and any moved/unassigned images; returns the tool's empty-state HTML if no dataset is available.
+            """
             limit_val = args[-1] if limit_count is not None else None
             
             run_dataset, count = _get_limited_dataset(limit_val)
@@ -818,6 +1093,28 @@ class BucketingTool(BaseTool):
             return result
         
         def organize(*args):
+            """
+            Run the organize action of the BucketingTool on a (optionally limited) dataset, copy/move files into bucket folders, print a compact run summary, and return the resulting HTML report.
+            
+            Parameters:
+                *args: Positional values expected in the following order:
+                    0: num_buckets (int or empty) — number of buckets to create.
+                    1: tolerance (float or empty) — percent tolerance for bucket matching.
+                    2: max_per_bucket (int or empty) — maximum images to assign per bucket (0 for no limit).
+                    3: manual_buckets (str) — manual ratio definitions, e.g., "3:2,1:1".
+                    4: create_landscape (bool) — whether to create landscape buckets.
+                    5: create_portrait (bool) — whether to create portrait buckets.
+                    6: create_square (bool) — whether to create square buckets.
+                    7: min_resolution (int or empty) — minimum allowed image dimension.
+                    8: max_resolution (int or empty) — maximum allowed image dimension.
+                    9: unassigned_action (str) — behavior for unassigned images.
+                    10: file_action (str) — "Copy" or "Move" for organizing files.
+                    11: output_dir (str) — target directory for organized output.
+                    (If a dataset limit is configured via closure, an additional final arg may be present and is treated as the limit value.)
+            
+            Returns:
+                html_report (str): The generated HTML report produced by apply_to_dataset summarizing organization results.
+            """
             limit_val = args[-1] if limit_count is not None else None
             
             run_dataset, count = _get_limited_dataset(limit_val)
@@ -858,5 +1155,4 @@ class BucketingTool(BaseTool):
         
         for c in [num_buckets, tolerance, max_per_bucket, manual_buckets, create_l, create_p, create_s, min_res, max_res]:
             c.change(fn=analyze, inputs=all_inputs, outputs=[result_output])
-
 

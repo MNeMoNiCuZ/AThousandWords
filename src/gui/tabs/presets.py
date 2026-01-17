@@ -66,14 +66,21 @@ PRESET_CSS = """
 
 
 def create_presets_tab(app, presets_tracker: gr.State) -> dict:
-    """Create Presets tab components.
+    """
+    Create and return Gradio UI components for the "User Prompt Presets" tab.
     
     Args:
-        app: CaptioningApp instance
-        presets_tracker: gr.State for tracking preset changes
-        
+        app: Application instance that provides preset management methods (e.g., get_preset_eligible_models,
+            get_user_presets_dataframe, save_user_preset, delete_user_preset, refresh_models).
+        presets_tracker: gr.State used to trigger re-rendering of the presets list when its value changes.
+    
     Returns:
-        dict of component references
+        dict: References to key UI components with keys:
+            - "model_dd": model dropdown component
+            - "name_txt": preset name textbox
+            - "prompt_txt": preset prompt textbox
+            - "save_btn": save/add preset button
+            - "tracker": the provided presets_tracker state
     """
     gr.Markdown("### 📚 User Prompt Presets")
     
@@ -93,6 +100,20 @@ def create_presets_tab(app, presets_tracker: gr.State) -> dict:
         
         @gr.render(inputs=[presets_tracker])
         def render_preset_list(tracker):
+            """
+            Render the User Presets list into the current Gradio layout.
+            
+            Retrieves user presets from the application and renders a header row plus one UI row per preset
+            (model, name, and prompt text) with a per-row delete button that deletes the preset and increments
+            the provided tracker to trigger a UI refresh. If no presets exist, returns a Markdown component
+            containing the message "*No presets found.*".
+            
+            Parameters:
+            	tracker (int or gr.State): Tracker value/state that is incremented after a delete to signal the UI to re-render.
+            
+            Returns:
+            	gr.Markdown: A Markdown component with the message "*No presets found.*" when there are no presets; otherwise returns None.
+            """
             rows = app.get_user_presets_dataframe()
             
             if not rows:
@@ -126,6 +147,16 @@ def create_presets_tab(app, presets_tracker: gr.State) -> dict:
                         del_btn = gr.Button("🗑️", elem_classes="preset-trash-btn", size="sm")
                         
                         def do_delete(m=p_model, n=p_name):
+                            """
+                            Delete the user preset identified by the given model and name and trigger a UI refresh.
+                            
+                            Parameters:
+                                m (str): Model identifier associated with the preset to delete.
+                                n (str): Name of the preset to delete.
+                            
+                            Returns:
+                                int: Updated tracker value (previous tracker value plus one).
+                            """
                             app.delete_user_preset(m, n)
                             return tracker + 1
                         
@@ -145,15 +176,26 @@ def create_presets_tab(app, presets_tracker: gr.State) -> dict:
 
 
 def wire_presets_events(app, components: dict, model_sel, models_chk):
-    """Wire preset events after components created.
+    """
+    Wire UI events for the Presets tab.
     
-    Args:
-        app: CaptioningApp instance
-        components: dict from create_presets_tab
-        model_sel: Model selection dropdown
-        models_chk: Models checkbox group
+    Binds the Add Preset button to save a user preset, increment the presets tracker to trigger a re-render, and refresh the model selection controls afterward.
+    
+    Parameters:
+        app: Application object exposing preset-related methods (expected to implement `save_user_preset(model, name, text)` and `refresh_models()`).
+        components (dict): Dictionary returned by `create_presets_tab` containing UI components (keys: "model_dd", "name_txt", "prompt_txt", "save_btn", "tracker").
+        model_sel: Model selection dropdown component to be refreshed after saving a preset.
+        models_chk: Models checkbox group component to be refreshed after saving a preset.
     """
     def handle_save_preset(model, name, text, tracker_val):
+        """
+        Save a user preset and increment the presets tracker to trigger a UI refresh.
+        
+        Calls into the application to persist the preset identified by `model`, `name`, and `text`, then returns `tracker_val + 1` to signal that the presets list should be re-rendered.
+        
+        Returns:
+            int: The updated tracker value (`tracker_val + 1`).
+        """
         app.save_user_preset(model, name, text)
         return tracker_val + 1
     

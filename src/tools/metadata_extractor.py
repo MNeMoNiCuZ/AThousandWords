@@ -21,6 +21,16 @@ class MetadataTool(BaseTool):
     
     @property
     def config(self) -> ToolConfig:
+        """
+        Provide the tool's configuration for the metadata extractor, including its name, display name, description, and icon.
+        
+        Returns:
+            ToolConfig: Configuration object with:
+                - name: "metadata_extractor"
+                - display_name: "Metadata Extractor"
+                - description: Brief markdown describing extraction of prompts from PNG Info, EXIF, etc.
+                - icon: empty string
+        """
         return ToolConfig(
             name="metadata_extractor",
             display_name="Metadata Extractor",
@@ -132,7 +142,15 @@ class MetadataTool(BaseTool):
         return result
     
     def create_gui(self, app) -> tuple:
-        """Create the Metadata tool UI. Returns (run_button, inputs) for later event wiring."""
+        """
+        Builds the Gradio user interface for the metadata extractor.
+        
+        Parameters:
+            app: The parent Gradio container (e.g., a Blocks or Interface) where UI components will be placed.
+        
+        Returns:
+            tuple: A pair (run_button, inputs) where `run_button` is the primary Gradio Button that triggers extraction and `inputs` is a list of Gradio input components to be used for event wiring.
+        """
         
         gr.Markdown(self.config.description)
         
@@ -175,7 +193,18 @@ class MetadataTool(BaseTool):
         return (meta_run, inputs)
     
     def _parse_png_parameters(self, metadata: Dict[str, Any]) -> Dict[str, Any]:
-        """Parse PNG parameters string into structured data."""
+        """
+        Parse the PNG "parameters" metadata string and add structured prompt and parameter fields.
+        
+        Parameters:
+            metadata (Dict[str, Any]): Image metadata dictionary; expected to contain a string at metadata["parameters"] produced by some PNG exporters.
+        
+        Returns:
+            Dict[str, Any]: The same metadata dictionary updated with keys:
+                - 'positive_prompt' (str): Extracted positive prompt text.
+                - 'negative_prompt' (str): Extracted negative prompt text (empty string if not present).
+                - 'parsed_params' (Dict[str, str]): Mapping of recognized parameter names (e.g., "steps", "sampler", "seed") to their extracted values.
+        """
         parsed_data = {"positive_prompt": "", "negative_prompt": "", "parsed_params": {}}
         params_str = metadata.get('metadata', {}).get('parameters', '')
         if not isinstance(params_str, str):
@@ -214,7 +243,23 @@ class MetadataTool(BaseTool):
         return metadata
 
     def _extract_metadata_from_file(self, file_path: str) -> Dict[str, Any]:
-        """Extract metadata from image file."""
+        """
+        Extract metadata from an image file and return a structured metadata dictionary.
+        
+        For PNG files, extracts the image's info dictionary and parses embedded parameter text to populate `positive_prompt`, `negative_prompt`, and `parsed_params`. For non-PNG files, attempts to extract EXIF data and decode byte values to UTF-8 where possible. If metadata extraction fails for non-PNG files, returns empty metadata fields. If an unexpected error occurs, an `error` key with the exception message is included.
+        
+        Parameters:
+            file_path (str): Path to the image file to inspect.
+        
+        Returns:
+            Dict[str, Any]: A dictionary containing at minimum:
+                - `file_path` (str): The input path.
+                - `metadata` (dict): Raw metadata (PNG info or readable EXIF) or an empty dict on failure.
+                - `parsed_params` (dict): Parsed parameter key/values extracted from PNG parameters (empty for non-PNG or on failure).
+                - `positive_prompt` (str): Extracted positive prompt text if present (empty string if not found).
+                - `negative_prompt` (str): Extracted negative prompt text if present (empty string if not found).
+                - `error` (str, optional): Error message when an unexpected exception prevented extraction.
+        """
         ext = os.path.splitext(file_path)[1].lower()
         try:
             if ext == '.png':

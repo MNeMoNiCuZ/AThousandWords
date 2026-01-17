@@ -12,8 +12,20 @@ logger = logging.getLogger("GUI.Renderers")
 
 def render_features_content(app, model_id, model_version, tracker, settings_state):
     """
-    Render dynamic feature rows for the selected model.
-    Called within a @gr.render context.
+    Constructs and wires a dynamic set of Gradio UI components for the given model's feature layout and initializes feature state.
+    
+    Builds per-feature GUI configurations from model config and current values, creates components, applies feature overrides and initial visibility rules (including `visible_if` conditions and prompt-source-specific visibility), and registers change handlers to:
+    - update a shared settings state when feature values change,
+    - dynamically toggle visibility of dependent components,
+    - propagate selected prompt presets into the task prompt.
+    
+    Parameters:
+        app: Application object providing config manager and registries used to resolve feature rows, model config, and prompt presets.
+        model_id (str): Identifier of the model whose features should be rendered. If falsy, the function returns early.
+        model_version (str): Model version used to resolve current values and presets.
+        tracker: Telemetry/tracking object (passed through but not documented further).
+        settings_state: Mutable Gradio state object that will be initialized with a copy of the current feature values and updated by component callbacks.
+    
     """
     if not model_id:
         return
@@ -37,6 +49,17 @@ def render_features_content(app, model_id, model_version, tracker, settings_stat
     
     # Universal State Update Handler
     def update_state_handler(val, current_state, name):
+        """
+        Update the settings state by assigning a value for a specific feature name.
+        
+        Parameters:
+            val: The value to set for the feature.
+            current_state (dict or None): Existing state mapping feature names to values. If None, a new dict is created.
+            name (str): The feature name/key to update in the state.
+        
+        Returns:
+            state (dict): The updated state dictionary with `name` set to `val`.
+        """
         if current_state is None:
             current_state = {}
         current_state[name] = val
@@ -45,6 +68,15 @@ def render_features_content(app, model_id, model_version, tracker, settings_stat
     # Helper to parse visibility conditions
     def parse_condition(cond_str):
         # simple parser for "source op 'value'"
+        """
+        Parse a simple condition string of the form "source op 'value'" into its components.
+        
+        Parameters:
+        	cond_str (str): Condition expression using a single-word source, `==` or `!=` operator, and a quoted value.
+        
+        Returns:
+        	tuple: `(source, op, value)` where `source` is the identifier, `op` is either `"=="` or `"!="`, and `value` is the unquoted string; `None` if the input does not match the expected pattern.
+        """
         match = re.match(r"(\w+)\s*(==|!=)\s*['\"](.+)['\"]", cond_str)
         if match:
             return match.groups()
@@ -161,6 +193,19 @@ def render_features_content(app, model_id, model_version, tracker, settings_stat
         targets = [component_map[d['target']] for d in dependants]
         
         def update_visibility_generic(source_val, deps=dependants):
+            """
+            Compute visibility updates for a set of dependent UI targets based on a source value.
+            
+            Parameters:
+                source_val: The current value of the source feature used for comparisons.
+                deps (list[dict]): A list of dependency descriptors. Each descriptor must contain:
+                    - 'op' (str): Comparison operator; supported values are '==' and '!='.
+                    - 'val' (str): Target value to compare against the string form of source_val.
+            
+            Returns:
+                list: A list of gr.update objects where each update sets `visible` to `true` if the comparison
+                between `str(source_val)` and the descriptor's 'val' satisfies the descriptor's 'op', `false` otherwise.
+            """
             updates = []
             for dep in deps:
                 op = dep['op']
@@ -192,6 +237,15 @@ def render_features_content(app, model_id, model_version, tracker, settings_stat
                 
         if target_map:
             def update_visibility_dynamic(source_val):
+                """
+                Compute visibility updates for a set of target components based on the selected prompt source.
+                
+                Parameters:
+                    source_val (str): Selected prompt source; expected values: "Prompt Presets", "From File", or "From Metadata".
+                
+                Returns:
+                    list: A list of gr.update objects, in the same order as target_map.keys(), where each update sets `visible` to `True` or `False` according to the selected source.
+                """
                 updates = []
                 for name in target_map.keys():
                     visible = False
@@ -219,6 +273,18 @@ def render_features_content(app, model_id, model_version, tracker, settings_stat
         presets = app.config_mgr.get_version_prompt_presets(model_id, current_version)
         
         def handle_preset_change(template_name, current_state):
+            """
+            Update the settings state with the selected prompt preset and produce the value to apply to the task prompt input.
+            
+            Parameters:
+                template_name (str): Name of the selected prompt preset.
+                current_state (dict | None): Current settings state; if None, a new dict will be created.
+            
+            Returns:
+                tuple:
+                    - `gr.update()` if no preset is selected or the preset name is not found, otherwise the preset prompt string to apply to the task prompt.
+                    - The updated settings state dictionary with `prompt_presets` set to `template_name` and `task_prompt` set to the preset prompt when applicable.
+            """
             if current_state is None:
                 current_state = {}
             

@@ -11,7 +11,12 @@ logger = logging.getLogger("GUI")
 
 
 def calc_gallery_height(app):
-    """Calculate dynamic gallery height based on rows/cols to maintain aspect ratio."""
+    """
+    Compute a scaled gallery height to preserve aspect ratio from app.gallery_rows and app.gallery_columns.
+    
+    Returns:
+        height (int or None): Calculated pixel height for the gallery in pixels; `None` if `app.gallery_rows` is 0.
+    """
     if app.gallery_rows == 0:
         return None
         
@@ -23,7 +28,14 @@ def calc_gallery_height(app):
 
 
 def save_last_model(app, mod_id):
-    """Saves the last used model to user config."""
+    """
+    Persist the specified model identifier as the last-used model in the user's configuration.
+    
+    Parameters:
+        app: Application context providing `current_model_id` and `config_mgr`.
+        mod_id (str): Model identifier to save; if falsy, no changes are made.
+    
+    """
     if mod_id:
         app.current_model_id = mod_id
         app.config_mgr.user_config['last_model'] = mod_id
@@ -31,7 +43,19 @@ def save_last_model(app, mod_id):
 
 
 def move_model_up(app, selected_model, current_order_state):
-    """Move selected model up in the order list."""
+    """
+    Move the selected model one position earlier in the model order.
+    
+    Parameters:
+        selected_model (str): The model identifier chosen to move; if falsy, no action is taken.
+        current_order_state (Iterable[str] or list): The current ordered sequence of model identifiers.
+    
+    Returns:
+        tuple: A three-element tuple containing:
+            - choices_update: UI update for the model choices/list reflecting the new order.
+            - order_text_update: UI update for the multiline order text set to the joined order.
+            - new_order (list): The updated list of model identifiers after the move.
+    """
     if not selected_model:
         gr.Warning("Please select a model first")
         return gr.update(), gr.update(), current_order_state
@@ -57,7 +81,19 @@ def move_model_up(app, selected_model, current_order_state):
 
 
 def move_model_down(app, selected_model, current_order_state):
-    """Move selected model down in the order list."""
+    """
+    Move the selected model one position down within the provided model order.
+    
+    Parameters:
+        selected_model (str): The model identifier chosen to move.
+        current_order_state (Sequence[str]): Current ordered sequence of model identifiers.
+    
+    Returns:
+        tuple: A 3-tuple containing:
+            - A Gradio update object for the model-order chooser with updated `choices` and the same `value`.
+            - A Gradio update object for the textual representation of the order (`value` set to the joined order lines).
+            - The new list of model identifiers in their updated order.
+    """
     if not selected_model:
         gr.Warning("Please select a model first")
         return gr.update(), gr.update(), current_order_state
@@ -83,7 +119,20 @@ def move_model_down(app, selected_model, current_order_state):
 
 
 def save_settings(app, vram, models_checked, gal_cols, gal_rows, limit_cnt, o_dir, o_fmt, over, rec, con, unload, pre, suf, clean, collapse, normalize, remove_cn, strip_loop, max_w, max_h, current_mod_id, model_ver, batch_sz, max_tok, settings_state, items_per_page):
-    """Save settings from the main UI directly to user_config.yaml."""
+    """
+    Persist UI settings to the user's configuration and apply them to the running app.
+    
+    Updates app.config_mgr.user_config with top-level UI settings (gallery layout, VRAM, disabled models, output options, text-processing flags, image size caps, unload behavior, etc.), records or prunes model-specific feature overrides for the optionally provided model and model version, filters and saves the resulting config to disk, refreshes model state, updates gallery dimensions and pagination, and displays a confirmation message.
+    
+    Parameters:
+        current_mod_id (str|None): Identifier of the currently selected model. When provided, model-specific defaults and supported features are consulted and per-model settings are saved or pruned accordingly.
+        model_ver (str|None): Selected model version to persist for the current model. Ignored if the model does not support versions or if the version is invalid.
+        settings_state (dict|None): Additional per-request feature values (e.g., generation-related settings) to consider for model-specific persistence.
+        items_per_page (int|None): Number of gallery items per page; also stored in the user configuration.
+    
+    Returns:
+        list: An empty list.
+    """
     
     app.config_mgr.user_config.update({
         'gpu_vram': int(vram) if vram is not None else 24,
@@ -221,7 +270,23 @@ def save_settings(app, vram, models_checked, gal_cols, gal_rows, limit_cnt, o_di
 
 
 def save_settings_simple(app, vram, system_ram, models_checked, gal_cols, gal_rows, unload, model_order_text, items_per_page):
-    """Save settings from the Settings tab (simplified version)."""
+    """
+    Persist a simplified set of Settings-tab preferences to the user configuration, update persisted model order, and refresh model-related UI state.
+    
+    Parameters:
+        app: The application context containing config manager, model manager, and UI helpers.
+        vram: GPU VRAM setting value to save.
+        system_ram: System RAM setting value to save.
+        models_checked: Iterable of model IDs currently enabled/checked in the UI.
+        gal_cols: Number of gallery columns to save.
+        gal_rows: Number of gallery rows to save (0 hides the gallery).
+        unload: Boolean indicating whether models should be unloaded when not in use.
+        model_order_text: New model order as a newline-separated string; unknown model IDs are ignored.
+        items_per_page: Number of items per gallery page; defaults to 50 when empty or falsy.
+    
+    Returns:
+        A list of Gradio update objects to apply to the UI (model dropdown update, model checkbox update, radio update, followed by per-model visibility updates).
+    """
     model_order_lines = [line.strip() for line in model_order_text.split('\n') if line.strip()]
     
     all_models_set = set(app.models)
@@ -273,7 +338,14 @@ def save_settings_simple(app, vram, system_ram, models_checked, gal_cols, gal_ro
 
 
 def reset_to_defaults(app):
-    """Delete user_config.yaml to reset all settings to defaults."""
+    """
+    Reset user settings to the application's defaults by removing the user configuration file if present.
+    
+    Returns:
+        tuple: (success, message)
+            - success (bool): `True` if defaults are in use (file removed or no file existed), `False` if an error occurred while attempting reset.
+            - message (str): Human-readable status or error message describing the outcome.
+    """
     import os
     
     user_config_path = app.config_mgr.user_config_path
@@ -290,7 +362,39 @@ def reset_to_defaults(app):
 
 
 def load_settings(app):
-    """Force re-read from disk (reload) and return UI values."""
+    """
+    Reload user and global settings from disk and return the current values needed to populate the settings UI.
+    
+    This forces the configuration manager to re-read the user YAML, applies fallbacks from global settings, ensures a valid current model selection, attempts to load user presets, and computes gallery layout defaults if needed.
+    
+    Returns:
+        A list containing the UI values in the following order:
+        - GPU VRAM setting value
+        - enabled models list
+        - gallery columns
+        - gallery rows
+        - limit count (empty string if not set)
+        - output directory
+        - output format
+        - overwrite flag
+        - recursive flag
+        - print to console flag
+        - unload model flag
+        - clean text flag
+        - collapse newlines flag
+        - normalize text flag
+        - remove Chinese characters flag
+        - strip loop flag
+        - max width
+        - max height
+        - prefix string
+        - suffix string
+        - current model id (or empty string if none)
+        - model order as a single newline-joined string
+        - a Gradio update object for the model order choices
+        - gallery items per page
+        - pagination visibility update handle
+    """
     app.config_mgr.user_config = app.config_mgr._load_yaml(app.config_mgr.user_config_path)
     
     cfg = app.config_mgr.get_global_settings()
@@ -333,7 +437,16 @@ def load_settings(app):
 
 
 def auto_save_setting(app, key, value):
-    """Saves a UI setting to user_config.yaml automatically."""
+    """
+    Persist a single UI setting into the user's configuration using the UI-to-config key map.
+    
+    If `key` is present in the module's `UI_CONFIG_MAP`, the function writes `value` to the mapped configuration key and saves the user configuration to disk; if `key` is not mapped, no changes are made.
+    
+    Parameters:
+        app: Application object providing access to `config_mgr`.
+        key (str): UI setting identifier to be mapped into the user configuration.
+        value: Value to store for the mapped configuration key.
+    """
     from .constants import UI_CONFIG_MAP
     if key in UI_CONFIG_MAP:
         config_key = UI_CONFIG_MAP[key]
@@ -342,7 +455,19 @@ def auto_save_setting(app, key, value):
 
 
 def save_model_defaults(app, mod_id, t, k, mt, rp):
-    """Saves current generation settings as user defaults for the model."""
+    """
+    Save generation defaults for a specific model.
+    
+    Parameters:
+        mod_id (str): Identifier of the model to save defaults for.
+        t (float): Sampling temperature.
+        k (int): Top-k sampling value.
+        mt (int): Maximum tokens for generation.
+        rp (float): Repetition penalty.
+    
+    Returns:
+        str: `"No model selected."` if `mod_id` is falsy; otherwise `"Saved defaults for {mod_id}"`.
+    """
     if not mod_id:
         return "No model selected."
     data = {
@@ -358,5 +483,13 @@ def save_model_defaults(app, mod_id, t, k, mt, rp):
 
 
 def reset_to_global(app, key):
-    """Returns the global default for a specific key."""
+    """
+    Retrieve the global default value for a configuration key.
+    
+    Parameters:
+        key (str): Configuration key to look up in the global defaults.
+    
+    Returns:
+        The global default value for `key`, or an empty string if the key is not present.
+    """
     return app.config_mgr.global_config.get(key, "")

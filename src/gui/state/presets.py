@@ -15,10 +15,21 @@ class PresetManager:
     """Manages user prompt presets."""
     
     def __init__(self, config_mgr):
+        """
+        Initialize the PresetManager with a configuration manager used to access and persist model and user preset data.
+        
+        Parameters:
+            config_mgr: An object that provides model and user configuration access and persistence methods (expected to implement at least `list_models()`, `get_model_config(model_id)`, a `user_config` dict, and `save_user_config()`).
+        """
         self.config = config_mgr
     
     def get_eligible_models(self) -> List[str]:
-        """Return list of models that support custom prompts."""
+        """
+        List models that support custom prompts.
+        
+        Returns:
+            eligible (List[str]): Model IDs that expose prompt presets.
+        """
         eligible = []
         for model_id in self.config.list_models():
             try:
@@ -30,7 +41,14 @@ class PresetManager:
         return eligible
     
     def get_presets_for_model(self, model_id: str) -> Dict[str, str]:
-        """Get all presets for a specific model."""
+        """
+        Retrieve merged prompt presets for a given model.
+        
+        Merges base presets from the model configuration, global user presets under the "all" scope, and user presets specific to the given model. When keys conflict, model-specific presets take precedence over global presets, which take precedence over base model presets.
+        
+        Returns:
+            Dict[str, str]: Mapping of preset name to prompt text.
+        """
         base_presets = {}
         
         config = self.config.get_model_config(model_id)
@@ -45,14 +63,16 @@ class PresetManager:
         return merged
     
     def save_preset(self, model_scope: str, name: str, text: str) -> bool:
-        """Save a user preset.
+        """
+        Save a user prompt preset under a model scope.
         
-        Args:
-            model_scope: Model ID or "all" for global
-            name: Preset name
-            text: Prompt text
-            
-        Returns True on success.
+        Parameters:
+            model_scope (str): Model ID to scope the preset, or "all" to make it global.
+            name (str): Preset name; must not be empty or only whitespace.
+            text (str): Prompt text; must not be empty or only whitespace.
+        
+        Returns:
+            bool: `True` if the preset was saved successfully, `False` otherwise (e.g., when name or text is empty).
         """
         if not name or not name.strip():
             gr.Warning("Preset name cannot be empty")
@@ -79,9 +99,15 @@ class PresetManager:
         return True
     
     def delete_preset(self, model_scope: str, name: str) -> bool:
-        """Delete a user preset.
+        """
+        Delete a user preset for a given scope.
         
-        Returns True on success.
+        Parameters:
+            model_scope (str): Model identifier to target; when falsy, the `"all"` scope is used.
+            name (str): Name of the preset to delete.
+        
+        Returns:
+            bool: `True` if the preset existed and was removed, `False` otherwise.
         """
         if not name:
             return False
@@ -103,9 +129,13 @@ class PresetManager:
         return False
     
     def get_presets_dataframe(self) -> List[List[str]]:
-        """Get all user presets formatted for dataframe display.
+        """
+        Format user presets into rows suitable for a dataframe view.
         
-        Returns list of [Model, Preset Name, Prompt Text, Delete] rows.
+        Returns:
+            rows (List[List[str]]): List of rows where each row is
+                [Scope Display, Preset Name, Prompt Text, Delete Symbol].
+                Scope Display is "All Models" for the global scope ("all"), otherwise the scope value.
         """
         rows = []
         user_presets = self.config.user_config.get('user_presets', {})

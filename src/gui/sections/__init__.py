@@ -74,13 +74,21 @@ def create_input_source(app):
 
 def create_gallery_section(app):
     """
-    Create the Dataset Gallery section with pagination.
+    Create the Dataset Gallery section containing the gallery and pagination controls.
     
-    Args:
-        app: CaptioningApp instance
-        
+    Parameters:
+        app: The CaptioningApp instance providing gallery configuration and state.
+    
     Returns:
-        dict: Component references including gallery_group wrapper
+        dict: References to created UI components:
+            - gallery_group: Group wrapper for the gallery section.
+            - gallery_accordion: Accordion containing the gallery.
+            - pagination_row: Row holding pagination controls (prev/next, page input, total pages).
+            - prev_btn: Button to go to the previous page.
+            - page_number_input: Numeric input for selecting a page.
+            - total_pages_label: Label showing total pages.
+            - next_btn: Button to go to the next page.
+            - gal: The Gallery component displaying dataset items.
     """
     with gr.Group(visible=app.gallery_rows > 0, elem_id="gallery_group") as gallery_group:
         with gr.Accordion("🖼️ Dataset Gallery", open=True) as gallery_accordion:
@@ -164,16 +172,19 @@ def create_viewer_section():
 def wire_dataset_events(app, input_components, gallery_components, viewer_components, 
                          recursive_checkbox=None, items_per_page_input=None):
     """
-    Wire ALL event handlers for dataset, gallery, pagination, and viewer sections.
-    
-    Args:
-        app: CaptioningApp instance
-        input_components: Dict from create_input_source
-        gallery_components: Dict from create_gallery_section
-        viewer_components: Dict from create_viewer_section
-        recursive_checkbox: Optional recursive checkbox component
-        items_per_page_input: Optional items per page setting component
-    """
+                         Connect UI components to the app's callbacks for dataset loading, gallery pagination, and the inspector viewer.
+                         
+                         Parameters:
+                             app: CaptioningApp instance used as the callback target and source of state.
+                             input_components (dict): Components returned by create_input_source (keys include "input_files", "input_path_text", "image_count", "load_source_btn", "limit_count", "clear_gallery_btn").
+                             gallery_components (dict): Components returned by create_gallery_section (keys include "gal", "pagination_row", "prev_btn", "next_btn", "page_number_input", "total_pages_label").
+                             viewer_components (dict): Components returned by create_viewer_section (keys include "inspector_group", "insp_tabs", "insp_img", "insp_video", "insp_cap", "save_cap_btn", "insp_remove_btn", "close_insp_btn").
+                             recursive_checkbox: Optional checkbox component that, if provided, is passed to the app's input-loading callback to control recursive directory loading.
+                             items_per_page_input: Optional component controlling items-per-page; its change event will trigger a gallery refresh.
+                         
+                         Returns:
+                             get_image_count (callable): A function that returns an HTML-formatted string showing the current image count (used to refresh the image count label).
+                         """
     import gradio as gr
     
     inp = input_components
@@ -206,6 +217,12 @@ def wire_dataset_events(app, input_components, gallery_components, viewer_compon
     
     # Image count updates
     def get_image_count():
+        """
+        Format the current dataset image count as an HTML-centered bold string.
+        
+        Returns:
+            html_string (str): An HTML snippet like "<center><b style='font-size: 1.2em'>X images</b></center>" where X is the number of images (0 if no dataset).
+        """
         count = len(app.dataset.images) if app.dataset else 0
         return f"<center><b style='font-size: 1.2em'>{count} images</b></center>"
     
@@ -238,16 +255,47 @@ def wire_dataset_events(app, input_components, gallery_components, viewer_compon
 
 
 def wire_gallery_settings(app, gal_cols, gal_rows_slider, gallery_group, gal):
-    """Wire gallery column/row settings changes."""
+    """
+    Synchronize gallery layout controls with the application state and update the gallery UI accordingly.
+    
+    Updates app.gallery_columns when the columns control changes and refreshes the gallery's columns, height, and data. Updates app.gallery_rows when the visible-rows control changes and toggles gallery visibility and height.
+    
+    Parameters:
+        app: The application state object that exposes `gallery_columns`, `gallery_rows`, `calc_gallery_height()`, and `_get_gallery_data()`.
+        gal_cols: Gradio component controlling the number of gallery columns.
+        gal_rows_slider: Gradio component controlling the number of visible gallery rows.
+        gallery_group: Gradio container whose visibility should reflect whether any rows are visible.
+        gal: Gradio Gallery component to be updated with new layout, height, and data.
+    """
     import gradio as gr
     
     def refresh_cols(val):
+        """
+        Update the app's gallery column count and produce a Gradio update for the gallery layout.
+        
+        Parameters:
+            val (int): The new number of columns for the gallery.
+        
+        Returns:
+            dict: A Gradio update mapping that sets `columns` to `val`, updates `height` using the app's gallery height calculator, and provides the gallery's current data as `value`.
+        """
         app.gallery_columns = val
         return gr.update(columns=val, height=app.calc_gallery_height(), value=app._get_gallery_data())
     
     gal_cols.change(refresh_cols, inputs=[gal_cols], outputs=[gal])
     
     def refresh_vis_rows(val):
+        """
+        Compute UI update objects when the number of visible gallery rows changes.
+        
+        Parameters:
+            val (int): Number of visible rows for the gallery.
+        
+        Returns:
+            tuple: A pair of Gradio update objects:
+                - First: an update for the gallery group visibility (`visible` set to whether `val` > 0).
+                - Second: an update for the gallery component (`height` set to the recalculated pixel height and `value` set to the current gallery data).
+        """
         app.gallery_rows = val
         is_visible = val > 0
         pixel_height = app.calc_gallery_height()
@@ -257,4 +305,3 @@ def wire_gallery_settings(app, gal_cols, gal_rows_slider, gallery_group, gal):
         )
     
     gal_rows_slider.change(refresh_vis_rows, inputs=[gal_rows_slider], outputs=[gallery_group, gal])
-

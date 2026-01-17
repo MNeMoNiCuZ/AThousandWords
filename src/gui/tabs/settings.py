@@ -17,15 +17,20 @@ def get_system_ram_gb() -> int:
 
 
 def create_settings_tab(app, cfg: dict, models_chk) -> dict:
-    """Create Settings tab components.
+    """
+    Create the Settings tab's Gradio components and return references to them.
     
     Args:
-        app: CaptioningApp instance
-        cfg: Global settings config dict
-        models_chk: Models checkbox group (to render in this tab)
-        
+        app: The CaptioningApp instance providing app state and helpers.
+        cfg (dict): Settings configuration values used to initialize controls.
+        models_chk: Models checkbox group component to render inside the tab.
+    
     Returns:
-        dict of component references
+        dict: Mapping of component keys to their Gradio component references. Keys include:
+            "vram", "system_ram", "unload", "items_per_page", "gal_cols", "gal_rows",
+            "model_order_state", "model_order_radio", "model_order_textbox",
+            "move_up_btn", "move_down_btn", "save_btn", "reset_btn",
+            "reset_confirm_btn", "reset_cancel_btn".
     """
     gr.Markdown("### 🖥️ System Settings")
     
@@ -133,15 +138,18 @@ def create_settings_tab(app, cfg: dict, models_chk) -> dict:
 
 def wire_settings_events(app, components: dict, model_sel, models_chk, 
                           multi_components: dict = None):
-    """Wire settings events after components created.
-    
-    Args:
-        app: CaptioningApp instance
-        components: dict from create_settings_tab
-        model_sel: Model selection dropdown
-        models_chk: Models checkbox group
-        multi_components: Optional dict of multi-model components
     """
+                          Connect interactive handlers for the Settings tab components.
+                          
+                          Wires the Move Up / Move Down buttons to the app's model-reordering handlers and sets up the reset confirmation flow (show/hide confirm/cancel and execute reset).
+                          
+                          Parameters:
+                              app: CaptioningApp instance used to perform model reordering and reset actions.
+                              components (dict): Mapping of component names to Gradio component instances as returned by create_settings_tab.
+                              model_sel: Model selection dropdown component.
+                              models_chk: Models checkbox group component.
+                              multi_components (dict, optional): Additional multi-model-related components, if any.
+                          """
     # Move up/down handlers
     components["move_up_btn"].click(
         app.move_model_up,
@@ -159,12 +167,41 @@ def wire_settings_events(app, components: dict, model_sel, models_chk,
     
     # Reset confirmation flow
     def show_confirm():
+        """
+        Toggle visibility to show the reset confirmation controls and hide the primary reset button.
+        
+        Returns:
+            tuple: (reset_btn_update, reset_confirm_btn_update, reset_cancel_btn_update) where
+                - reset_btn_update: Gradio update that hides the reset button,
+                - reset_confirm_btn_update: Gradio update that shows the confirm button,
+                - reset_cancel_btn_update: Gradio update that shows the cancel button.
+        """
         return gr.update(visible=False), gr.update(visible=True), gr.update(visible=True)
     
     def hide_confirm():
+        """
+        Restore the Reset/Confirm/Cancel controls to their default visibility.
+        
+        Returns:
+            tuple: Three Gradio updates: (reset_button_update, confirm_button_update, cancel_button_update).
+                - `reset_button_update`: `gr.update(visible=True)` to show the Reset button.
+                - `confirm_button_update`: `gr.update(visible=False)` to hide the Confirm Reset button.
+                - `cancel_button_update`: `gr.update(visible=False)` to hide the Cancel button.
+        """
         return gr.update(visible=True), gr.update(visible=False), gr.update(visible=False)
     
     def do_reset():
+        """
+        Restore application settings to their defaults and return UI updates for the reset confirmation controls.
+        
+        Calls app.reset_to_defaults() to perform the reset.
+        
+        Returns:
+            tuple: Three Gradio update objects in order (reset_btn_update, reset_confirm_btn_update, reset_cancel_btn_update):
+                - reset_btn_update: makes the Reset button visible.
+                - reset_confirm_btn_update: hides the Confirm Reset button.
+                - reset_cancel_btn_update: hides the Cancel button.
+        """
         app.reset_to_defaults()
         return gr.update(visible=True), gr.update(visible=False), gr.update(visible=False)
     
