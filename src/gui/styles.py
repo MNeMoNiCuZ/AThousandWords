@@ -100,39 +100,6 @@ input[type=number] { -moz-appearance: textfield !important; appearance: textfiel
     background: transparent !important;
 }
 
-/* Hide rows with all hidden children - fixes visible lines from hidden components */
-/* Target rows that only contain hidden elements, BUT exclude General Settings rows */
-.gradio-row:has([style*="display: none"]):not(:has(*:not([style*="display: none"]))):not(.general-settings-row) {
-    display: none !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    height: 0 !important;
-    border: none !important;
-}
-
-/* Fallback for browsers without :has() support - hide rows with hidden class */
-.gradio-row.hidden-row:not(.general-settings-row) {
-    display: none !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    height: 0 !important;
-    border: none !important;
-}
-
-/* Also target empty rows directly, but not in General Settings */
-.gradio-row:empty:not(.general-settings-row) {
-    display: none !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    height: 0 !important;
-    border: none !important;
-}
-
-/* Ensure accordion content areas are never hidden */
-.gr-accordion > div[class*="content"],
-.gradio-accordion > div[class*="content"] {
-    display: block !important;
-}
 
 
 

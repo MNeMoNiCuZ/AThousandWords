@@ -1,62 +1,181 @@
+"""
+Metadata Extraction Tool
+
+Extracts metadata (User Comment, PNG Info, etc.) from images to create captions.
+Implements BaseTool for auto-discovery and self-contained GUI.
+"""
+
 import os
-import json
 import re
+import logging
+import gradio as gr
 import piexif
-import torch
-import numpy as np
 from PIL import Image
-import torchvision.transforms.functional as F
-from typing import Dict, List, Any
+from typing import Dict, Any
 
-class MetadataExtractor:
-    def __init__(self):
-        pass
+from .base import BaseTool, ToolConfig
 
-    @classmethod
-    def INPUT_TYPES(cls):
-        return {
-            "required": {
-                "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff, "tooltip": "The seed determines the starting point for selecting pairs. Set to 'increment' in the workflow options to cycle through all available pairs sequentially."}),
-            },
-            "optional": {
-                "input_path": ("STRING", {"multiline": False, "default": "", "tooltip": "Path to a folder containing images or a single image file. This is used only if image_input is not connected."}),
-                "image_input": ("IMAGE", {"tooltip": "A single image or a list/batch of images. This input has priority over the input_path."}),
-                "filter_params": ("STRING", {"multiline": False, "default": "", "tooltip": "A comma-separated list of case-insensitive keys to extract from the parsed parameters (e.g., steps, sampler, seed)."}),
-                "max_file_count": ("INT", {"default": 0, "min": 0, "max": 10000, "step": 1, "tooltip": "The maximum number of pairs to return in the output lists. If set to 0, all found pairs will be returned."}),
-            }
-        }
 
-    RETURN_TYPES = (
-        "IMAGE", "STRING", "STRING", "STRING", "STRING", "STRING",
-        "IMAGE", "STRING", "STRING", "STRING", "STRING", "STRING",
-    )
-    RETURN_NAMES = (
-        "image_single", "positive_prompt_single", "negative_prompt_single", 
-        "parsed_params_single_json", "filtered_params_single_list", "raw_metadata_single_json",
-        "image_list", "positive_prompt_list", "negative_prompt_list",
-        "parsed_params_list_json", "filtered_params_list_grouped", "raw_metadata_list_json",
-    )
+class MetadataTool(BaseTool):
+    """Tool for extracting image metadata and creating captions."""
     
-    OUTPUT_TOOLTIPS = (
-        "The single image selected by the seed. Its position in the list determines which item is chosen from the input list.",
-        "The parsed positive prompt from the selected image's metadata.",
-        "The parsed negative prompt from the selected image's metadata.",
-        "All parsed parameters from the selected image, including prompts, as a JSON string.",
-        "The specific values requested in 'filter_params' from the selected image, returned as a multi-line string. Use the parsed_params_single_json output for reference, then enter the same parameter name here in a comma separated list. e.g. 'steps, sampler, seed'. Each output will have it's own string list output value.",
-        "The complete, raw metadata of the selected image, formatted as a JSON string.",
-        "A list of all images from the input list. Images are proportionally scaled to match the aspect ratio of the first image, then cropped to its resolution.",
-        "A list of all positive prompts from the input list.",
-        "A list of all negative prompts from the input list.",
-        "A list of all parsed parameter sets (as JSON strings).",
-        "A list of all filtered parameter sets (as multi-line strings).",
-        "A list of all raw metadata sets (as JSON strings)."
-    )
+    @property
+    def config(self) -> ToolConfig:
+        return ToolConfig(
+            name="metadata_extractor",
+            display_name="Metadata Extractor",
+            description="### Extract Metadata to Captions\nExtract prompts from PNG Info, EXIF, etc. to create caption files.",
+            icon=""
+        )
+    
+    def apply_to_dataset(self, dataset, source_type: str = "all", update_caption: bool = True,
+                         prefix: str = "", suffix: str = "", 
+                         clean: bool = False, collapse: bool = False, normalize: bool = False,
+                         output_dir: str = None, extension: str = ".txt") -> str:
+        """
+        Iterates through the dataset and extracts metadata.
+        
+        Args:
+            dataset: Dataset object containing images
+            source_type: 'png_info', 'exif', or 'all'
+            update_caption: If True, sets the image caption to the extracted 'positive_prompt'
+            prefix: Text to add at the start of each caption
+            suffix: Text to add at the end of each caption
+            clean: Remove extra spaces
+            collapse: Merge paragraphs (collapse newlines)
+            normalize: Fix punctuation
+            output_dir: Optional path to save captions to
+            extension: File extension for saved captions
+            
+        Returns:
+            str: Status message
+        """
+        from src.features.core.text_cleanup import CleanTextFeature, CollapseNewlinesFeature
+        from src.features.core.normalize_text import NormalizeTextFeature
+        from pathlib import Path
+        
+        # ANSI colors
+        CYAN = "\033[96m"
+        GREEN = "\033[92m"
+        YELLOW = "\033[93m"
+        RED = "\033[91m"
+        RESET = "\033[0m"
+        DIM = "\033[2m"
+        
+        count = 0
+        saved_count = 0
+        no_meta_count = 0
+        error_count = 0
+        
+        # Log settings
+        print(f"{CYAN}Settings:{RESET}")
+        print(f"  Source: {source_type}")
+        print(f"  Output Dir: {output_dir or '(same as source)'}")
+        print(f"  Extension: {extension}")
+        print(f"  Overwrite Captions: {update_caption}")
+        opts = []
+        if clean: opts.append("Clean")
+        if collapse: opts.append("Collapse")
+        if normalize: opts.append("Normalize")
+        print(f"  Text Processing: {', '.join(opts) if opts else '(none)'}")
+        if prefix or suffix:
+            print(f"  Prefix: '{prefix}' | Suffix: '{suffix}'")
+        print(f"")
+        
+        out_path_obj = Path(output_dir) if output_dir else None
+        if out_path_obj and not out_path_obj.exists():
+            out_path_obj.mkdir(parents=True, exist_ok=True)
 
-    FUNCTION = "extract_metadata"
-    CATEGORY = "⚡ MNeMiC Nodes"
-    DESCRIPTION = "Extracts, parses, and filters metadata from image files or direct image inputs, providing synchronized image and text outputs."
+        for img_obj in dataset.images:
+            try:
+                meta = self._extract_metadata_from_file(str(img_obj.path))
+                img_obj.metadata.update(meta.get("metadata", {}))
+                img_obj.metadata.update(meta.get("parsed_params", {}))
+                
+                pos_prompt = meta.get("positive_prompt", "")
+                if pos_prompt:
+                    if normalize:
+                        pos_prompt = NormalizeTextFeature.apply(pos_prompt)
+                    if collapse:
+                        pos_prompt = CollapseNewlinesFeature.apply(pos_prompt)
+                    if clean:
+                        pos_prompt = CleanTextFeature.apply(pos_prompt)
+                        
+                    if prefix:
+                        pos_prompt = f"{prefix}{pos_prompt}"
+                    if suffix:
+                        pos_prompt = f"{pos_prompt}{suffix}"
+                    
+                    if update_caption:
+                        img_obj.update_caption(pos_prompt)
+                        if extension and not extension.startswith('.'):
+                            extension = '.' + extension
+                        img_obj.save_caption(extension=extension, output_dir=out_path_obj)
+                        saved_count += 1
+                        
+                    count += 1
+                    preview = pos_prompt[:60] + "..." if len(pos_prompt) > 60 else pos_prompt
+                    print(f"  {GREEN}✓{RESET} {Path(img_obj.path).name}: {DIM}{preview}{RESET}")
+                else:
+                    no_meta_count += 1
+                    print(f"  {YELLOW}○{RESET} {Path(img_obj.path).name}: {DIM}(no metadata found){RESET}")
+            except Exception as e:
+                error_count += 1
+                print(f"  {RED}✗{RESET} {Path(img_obj.path).name}: {DIM}{e}{RESET}")
+                logging.error(f"Error extracting metadata from {img_obj.path}: {e}")
+                img_obj.error = f"Metadata error: {e}"
+        
+        print(f"")
+        print(f"{CYAN}Summary:{RESET} {GREEN}Found: {count}{RESET} | {YELLOW}No Metadata: {no_meta_count}{RESET} | {RED}Errors: {error_count}{RESET} | Saved: {saved_count}")
+        
+        result = f"Processed {len(dataset)} images. Found metadata for {count}. Saved {saved_count} captions."
+        return result
+    
+    def create_gui(self, app) -> tuple:
+        """Create the Metadata tool UI. Returns (run_button, inputs) for later event wiring."""
+        
+        gr.Markdown(self.config.description)
+        
+        with gr.Row():
+            meta_src = gr.Dropdown(
+                ["all", "png_info", "exif"], 
+                label="Source", 
+                value="all", 
+                info="Which metadata field to search."
+            )
+            meta_out_dir = gr.Textbox(
+                label="Output Directory", 
+                placeholder="Optional. Leave empty to save in same folder.", 
+                info="Path to save text files."
+            )
+            meta_ext = gr.Textbox(
+                label="Output Extension", 
+                value="txt", 
+                placeholder="txt", 
+                info="Extension for caption files."
+            )
+            meta_upd = gr.Checkbox(
+                label="Overwrite existing captions", 
+                value=True
+            )
+        
+        with gr.Row():
+            meta_clean = gr.Checkbox(label="Clean Text", value=True, info="Remove extra spaces")
+            meta_collapse = gr.Checkbox(label="Collapse Newlines", value=True, info="Merge paragraphs")
+            meta_norm = gr.Checkbox(label="Normalize Text", value=True, info="Fix punctuation")
+            
+        with gr.Row():
+            meta_pre = gr.Textbox(label="Prefix", placeholder="Added to start...", lines=1)
+            meta_suf = gr.Textbox(label="Suffix", placeholder="Added to end...", lines=1)
 
+        meta_run = gr.Button("Extract Metadata", variant="primary", elem_id="metadata_tool_btn")
+        
+        # Return components for later event wiring
+        inputs = [meta_src, meta_upd, meta_pre, meta_suf, meta_clean, meta_collapse, meta_norm, meta_out_dir, meta_ext]
+        return (meta_run, inputs)
+    
     def _parse_png_parameters(self, metadata: Dict[str, Any]) -> Dict[str, Any]:
+        """Parse PNG parameters string into structured data."""
         parsed_data = {"positive_prompt": "", "negative_prompt": "", "parsed_params": {}}
         params_str = metadata.get('metadata', {}).get('parameters', '')
         if not isinstance(params_str, str):
@@ -95,135 +214,31 @@ class MetadataExtractor:
         return metadata
 
     def _extract_metadata_from_file(self, file_path: str) -> Dict[str, Any]:
+        """Extract metadata from image file."""
         ext = os.path.splitext(file_path)[1].lower()
         try:
             if ext == '.png':
-                with Image.open(file_path) as img: info = dict(img.info)
+                with Image.open(file_path) as img: 
+                    info = dict(img.info)
+                    
                 metadata = {"file_path": file_path, "metadata": info}
                 return self._parse_png_parameters(metadata)
             else:
-                exif_dict = piexif.load(file_path)
-                readable_exif = {}
-                for ifd, tags in exif_dict.items():
-                    if ifd == "thumbnail": continue
-                    readable_exif[ifd] = {}
-                    for tag, value in tags.items():
-                        tag_name = piexif.TAGS.get(ifd, {}).get(tag, {}).get("name", tag)
-                        try: readable_exif[ifd][tag_name] = value.decode('utf-8', 'ignore') if isinstance(value, bytes) else value
-                        except: readable_exif[ifd][tag_name] = repr(value)
-                return {"file_path": file_path, "metadata": readable_exif, "parsed_params": {}, "positive_prompt": "", "negative_prompt": ""}
-        except Exception as e:
-            return {"file_path": file_path, "error": f"Error reading metadata: {str(e)}", "parsed_params": {}, "positive_prompt": "", "negative_prompt": ""}
-
-    def _resize_and_crop_image(self, img_tensor: torch.Tensor, target_height: int, target_width: int) -> torch.Tensor:
-        # img_tensor is HWC, convert to CHW for F.
-        img_tensor_chw = img_tensor.permute(2, 0, 1)
-        
-        _, current_height, current_width = img_tensor_chw.shape
-
-        # Calculate aspect ratios
-        target_aspect = target_width / target_height
-        current_aspect = current_width / current_height
-
-        if current_aspect > target_aspect:
-            # Image is wider than target, scale by height and then crop width
-            scale_factor = target_height / current_height
-            new_width = int(current_width * scale_factor)
-            new_height = target_height
-            resized_tensor = F.resize(img_tensor_chw, [new_height, new_width])
-            
-            # Calculate crop coordinates for width
-            left = (new_width - target_width) / 2
-            top = 0
-            cropped_tensor = F.crop(resized_tensor, int(top), int(left), target_height, target_width)
-        else:
-            # Image is taller or same aspect ratio, scale by width and then crop height
-            scale_factor = target_width / current_width
-            new_height = int(current_height * scale_factor)
-            new_width = target_width
-            resized_tensor = F.resize(img_tensor_chw, [new_height, new_width])
-
-            # Calculate crop coordinates for height
-            left = 0
-            top = (new_height - target_height) / 2
-            cropped_tensor = F.crop(resized_tensor, int(top), int(left), target_height, target_width)
-        
-        return cropped_tensor.permute(1, 2, 0) # Convert back to HWC
-
-    def extract_metadata(self, seed: int, input_path: str = None, image_input=None, filter_params: str = "", max_file_count: int = 0):
-        all_images, all_metadata = [], []
-
-        if image_input is not None:
-            all_images = list(image_input)
-            for i in range(len(all_images)):
-                all_metadata.append({"file_path": f"from_image_input_{i}", "metadata": {"source": "direct_input"}, "parsed_params": {}, "positive_prompt": "", "negative_prompt": ""})
-        elif input_path:
-            if not os.path.isabs(input_path):
-                from folder_paths import get_input_directory
-                input_dir = get_input_directory()
-                if not input_dir or not os.path.isdir(input_dir): return (None,)*12
-                input_path = os.path.join(input_dir, input_path)
-
-            supported_exts = ['.png', '.jpg', '.jpeg', '.tiff', '.tif']
-            files_found = [os.path.join(input_path, f) for f in sorted(os.listdir(input_path)) if os.path.splitext(f)[1].lower() in supported_exts] if os.path.isdir(input_path) else ([input_path] if os.path.isfile(input_path) else [])
-
-            for file_path in files_found:
                 try:
-                    img = Image.open(file_path).convert("RGB")
-                    image_tensor = torch.from_numpy(np.array(img).astype(np.float32) / 255.0)
-                    all_images.append(image_tensor)
-                    all_metadata.append(self._extract_metadata_from_file(file_path))
-                except Exception as e:
-                    print(f"Skipping file {file_path}: {e}")
-
-        if not all_images:
-            return (torch.zeros((1, 64, 64, 3)), "", "", "{}", "", "{}", torch.zeros((0, 64, 64, 3)), [], [], [], [], [])
-
-        # --- Rotation ---
-        current_index = seed % len(all_images)
-        final_images = all_images[current_index:] + all_images[:current_index]
-        final_metadata = all_metadata[current_index:] + all_metadata[:current_index]
-
-        if max_file_count > 0:
-            final_images = final_images[:max_file_count]
-            final_metadata = final_metadata[:max_file_count]
-
-        # --- Image Batching and Resizing ---
-        first_image_height, first_image_width = final_images[0].shape[0], final_images[0].shape[1] # (H, W)
-        resized_images = []
-        for i, img_tensor in enumerate(final_images):
-            current_height, current_width = img_tensor.shape[0], img_tensor.shape[1]
-            if current_height != first_image_height or current_width != first_image_width:
-                print(f"MetadataExtractor Warning: Image {i+1} (H:{current_height}, W:{current_width}) does not match first image dimensions (H:{first_image_height}, W:{first_image_width}). Resizing and cropping.")
-            # Apply proportional scaling and cropping
-            processed_tensor = self._resize_and_crop_image(img_tensor, first_image_height, first_image_width)
-            resized_images.append(processed_tensor)
-
-        image_list = torch.stack(resized_images)
-
-        # --- Filter Logic ---
-        filter_keys = [k.strip().lower() for k in filter_params.split(',') if k.strip()]
-        def get_filtered_values(params_dict):
-            return [str(params_dict.get(key, '')) for key in filter_keys]
-
-        # --- Single Outputs ---
-        image_single = final_images[0].unsqueeze(0)
-        meta_single = final_metadata[0]
-        pos_prompt_single = meta_single.get('positive_prompt', '')
-        neg_prompt_single = meta_single.get('negative_prompt', '')
-        parsed_params_single = meta_single.get('parsed_params', {})
-        filtered_params_single_list = get_filtered_values(parsed_params_single)
-        raw_meta_single_json = json.dumps(meta_single.get('metadata', {}), indent=4, default=str)
-        parsed_params_single_json = json.dumps(parsed_params_single, indent=4, default=str)
-
-        # --- List Outputs ---
-        pos_prompt_list = [m.get('positive_prompt', '') for m in final_metadata]
-        neg_prompt_list = [m.get('negative_prompt', '') for m in final_metadata]
-        parsed_params_list_json = [json.dumps(m.get('parsed_params', {}), indent=4, default=str) for m in final_metadata]
-        filtered_params_list_grouped = ["\n".join(get_filtered_values(m.get('parsed_params', {}))) for m in final_metadata]
-        raw_meta_list_json = [json.dumps(m.get('metadata', {}), indent=4, default=str) for m in final_metadata]
-
-        return (
-            image_single, pos_prompt_single, neg_prompt_single, parsed_params_single_json, filtered_params_single_list, raw_meta_single_json,
-            image_list, pos_prompt_list, neg_prompt_list, parsed_params_list_json, filtered_params_list_grouped, raw_meta_list_json
-        )
+                    exif_dict = piexif.load(file_path)
+                    readable_exif = {}
+                    for ifd, tags in exif_dict.items():
+                        if ifd == "thumbnail":
+                            continue
+                        readable_exif[ifd] = {}
+                        for tag, value in tags.items():
+                            try:
+                                tag_name = piexif.TAGS.get(ifd, {}).get(tag, {}).get("name", tag)
+                                readable_exif[ifd][tag_name] = value.decode('utf-8', 'ignore') if isinstance(value, bytes) else value
+                            except:
+                                pass
+                    return {"file_path": file_path, "metadata": readable_exif, "parsed_params": {}, "positive_prompt": "", "negative_prompt": ""}
+                except Exception:
+                    return {"file_path": file_path, "metadata": {}, "parsed_params": {}, "positive_prompt": "", "negative_prompt": ""}
+        except Exception as e:
+            return {"file_path": file_path, "error": str(e), "parsed_params": {}, "positive_prompt": "", "negative_prompt": ""}

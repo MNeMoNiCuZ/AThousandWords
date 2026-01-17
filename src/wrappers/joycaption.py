@@ -95,6 +95,10 @@ class JoyCaptionWrapper(BaseCaptionModel):
         
         self.processor = AutoProcessor.from_pretrained(model_id)
         
+        # Fix: Set pad_token if not set (required for batched processing with padding)
+        if self.processor.tokenizer.pad_token is None:
+            self.processor.tokenizer.pad_token = self.processor.tokenizer.eos_token
+        
         # Try to apply liger_kernel optimization (optional)
         try:
             from liger_kernel.transformers import apply_liger_kernel_to_llama
