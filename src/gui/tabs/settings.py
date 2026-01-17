@@ -165,7 +165,11 @@ def wire_settings_events(app, components: dict, model_sel, models_chk,
         return gr.update(visible=True), gr.update(visible=False), gr.update(visible=False)
     
     def do_reset():
-        app.reset_to_defaults()
+        success, message = app.reset_to_defaults()
+        if success:
+            gr.Info(message)
+        else:
+            gr.Warning(message)
         return gr.update(visible=True), gr.update(visible=False), gr.update(visible=False)
     
     components["reset_btn"].click(

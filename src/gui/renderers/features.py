@@ -10,7 +10,7 @@ from src.gui.logic.model_logic import resolve_model_values
 
 logger = logging.getLogger("GUI.Renderers")
 
-def render_features_content(app, model_id, model_version, tracker, settings_state):
+def render_features_content(app, model_id, model_version, settings_state):
     """
     Render dynamic feature rows for the selected model.
     Called within a @gr.render context.

@@ -14,6 +14,15 @@ def open_inspector(app, evt: gr.SelectData):
             ""
         )
     
+    if not app.dataset or not app.dataset.images:
+        return (
+            gr.update(visible=False),
+            gr.update(selected="img_tab"),
+            None,
+            None,
+            ""
+        )
+    
     page_offset = (app.current_page - 1) * app.gallery_items_per_page
     index = evt.index + page_offset
     
@@ -51,6 +60,10 @@ def open_inspector(app, evt: gr.SelectData):
 
 def remove_from_gallery(app):
     """Remove currently selected image from dataset (not from disk)."""
+    if not app.dataset or not app.dataset.images:
+        gr.Warning("No dataset loaded")
+        return app._get_gallery_data(), gr.update(visible=True), app.current_page, app.get_total_label(), app._get_pagination_vis()
+    
     if app.selected_index is not None and 0 <= app.selected_index < len(app.dataset.images):
         app.dataset.images.pop(app.selected_index)
         app.selected_index = None

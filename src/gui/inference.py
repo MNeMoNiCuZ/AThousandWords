@@ -2,6 +2,7 @@
 Inference helpers for argument building and validation.
 """
 
+from pathlib import Path
 import gradio as gr
 
 
@@ -191,7 +192,7 @@ def run_with_dynamic_state(app, build_args_fn, *args):
             visible=True,
             interactive=True,
             variant="primary",
-            icon="src/core/download_white.svg",
+            icon=str(Path(__file__).parent.parent / "core" / "download_white.svg"),
             elem_classes="download-btn"
         )
 

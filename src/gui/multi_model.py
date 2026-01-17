@@ -122,6 +122,7 @@ def generate_multi_model_commands_with_settings(app, current_settings, checkboxe
         args = {
             **global_settings,
             **model_defaults,
+            'output_format': formats[app.models.index(model_id)]
         }
         
         cmd = app.generate_cli_command(model_id, args, skip_defaults=False)

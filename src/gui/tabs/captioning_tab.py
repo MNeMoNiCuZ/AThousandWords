@@ -1,5 +1,6 @@
 """Captioning tab factory - General and Model Settings accordions."""
 
+from pathlib import Path
 import gradio as gr
 import src.features as feature_registry
 
@@ -124,7 +125,7 @@ def create_model_settings_accordion(app, get_model_description_html_fn):
 
         @gr.render(inputs=[model_sel, model_version_dropdown, presets_tracker])
         def render_features(model_id, model_version, tracker):
-            render_features_content(app, model_id, model_version, tracker, settings_state)
+            render_features_content(app, model_id, model_version, settings_state)
 
         run_inference_wrapper = create_inference_wrapper(app, settings_state)
         update_model_settings_ui = create_update_model_settings_handler(app, model_feature_components, model_description)
@@ -218,7 +219,7 @@ def create_control_area():
         run_btn = gr.Button("Run Captioning", variant="primary", scale=1)
         with gr.Column(visible=False, scale=0, min_width=80, elem_classes="download-btn-wrapper") as download_btn_group:
             download_btn = gr.DownloadButton(
-                label="", icon="src/core/download_white.svg", visible=True,
+                label="", icon=str(Path(__file__).parent.parent.parent / "core" / "download_white.svg"), visible=True,
                 variant="primary", scale=0, elem_classes="download-btn"
             )
     
