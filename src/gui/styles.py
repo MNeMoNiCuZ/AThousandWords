@@ -504,4 +504,12 @@ input[type="number"] {
     opacity: 1.0;
     border-radius: 4px;
 }
+/* Model Info Description Links - Inline styling, no extra padding */
+table td span a,
+table td div span a {
+    display: inline !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    text-decoration: underline !important;
+}
 """
