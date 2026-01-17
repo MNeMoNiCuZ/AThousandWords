@@ -16,8 +16,8 @@ if not exist "venv\Scripts\activate.bat" (
 :: Activate venv
 call venv\Scripts\activate >nul 2>&1
 
-:: Run pre-launch validation script (silent on success)
-python validate_environment.py
+:: Run pre-launch validation script from src/core directory (silent on success)
+python src/core/validate_environment.py
 if not errorlevel 1 goto launch
 
 :: Validation failed - show warning

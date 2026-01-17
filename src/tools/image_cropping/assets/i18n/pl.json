@@ -1,0 +1,369 @@
+{
+  "APP": {
+    "TITLE": "Stabilis Web UI"
+  },
+  "MENU": {
+    "LIST_MODELS": "Lista Modeli",
+    "MALS_MODELS": "Modele Mala",
+    "COMFYUI_OUTPUTS": "Wyjścia ComfyUI",
+    "COMFYUI_PROMPTS": "Prompty ComfyUI",
+    "DATASETS": "Zbiory Danych",
+    "TRAINING": "Trening",
+    "CIVITAI": "CivitAI",
+    "REDDIT": "Reddit FAQ"
+  },
+  "TRAINING": {
+    "TARGET_LABEL": "Cel trenowania",
+    "TARGET_META": "Cel",
+    "TABS": {
+      "UPLOAD": "Wgraj i trenuj",
+      "JOBS": "Kolejka zadań",
+      "STATUS": "Status"
+    },
+    "UPLOAD": {
+      "TITLE": "Wgraj i trenuj",
+      "MODEL_NAME": "Nazwa modelu",
+      "TOKEN": "Token",
+      "CLASS": "Klasa",
+      "TYPES": "Typy treningu",
+      "IMAGES": "Obrazy",
+      "IMAGES_HINT": "Upuść obrazy tutaj lub wybierz pliki",
+      "SELECTED": "Wybrane",
+      "CLEAR": "Wyczyść",
+      "REMOVE": "Usuń",
+      "UPLOADING": "Wysyłanie...",
+      "SUBMIT": "Wgraj i trenuj"
+    },
+    "DATASET_MODE": {
+      "TITLE": "Trenuj z istniejących datasetów (brakujące modele)",
+      "MODEL_TYPE": "Typ modelu",
+      "SEARCH": "Szukaj",
+      "MISSING_DATASETS": "Brakujące datasety",
+      "FOUND": "Znaleziono",
+      "SELECTED": "Wybrane",
+      "SELECT_ALL": "Zaznacz wszystkie",
+      "CLEAR_SELECTION": "Wyczyść zaznaczenie",
+      "TRAINING": "Trenowanie...",
+      "TRAIN_SELECTED": "Trenuj zaznaczone",
+      "FILES": "Pliki"
+    },
+    "JOBS": {
+      "TITLE": "Kolejka zadań",
+      "ESTIMATED_TOTAL": "Szacowany czas",
+      "ESTIMATED_FINISH": "Szacowany koniec",
+      "STARTS_IN": "Start za",
+      "MOVE_TOP": "Przenieś na górę",
+      "MOVE_UP": "Przesuń w górę",
+      "MOVE_DOWN": "Przesuń w dół",
+      "MOVE_BOTTOM": "Przenieś na dół",
+      "REMOVE": "Usuń z kolejki"
+    }
+  },
+  "DATASETS": {
+    "TITLE": "Zarządzanie datasetami",
+    "REFRESH": "Odśwież porównanie",
+    "SCANNING": "Skanowanie datasetów...",
+    "FILES": "plików",
+    "COPY_LINK_TO": "Skopiuj link do",
+    "COPY_LINK_TO_TITLE": "Skopiuj link do {{name}}",
+    "LINK_COPIED": "Link skopiowany!",
+    "ERROR_LOAD": "Nie udało się załadować porównania datasetów",
+    "SUMMARY": {
+      "MISSING": "Brakujące w AI-Toolkit",
+      "BOTH": "W obu lokalizacjach",
+      "TARGET_ONLY": "Tylko w AI-Toolkit"
+    },
+    "PREPARE_TOOLKIT": "Przygotuj dataset AI Toolkit",
+    "PREPARE_MODAL": {
+      "TITLE": "Przygotuj dataset AI Toolkit: {{name}}",
+      "SELECTED": "Wybrano {{count}} zdjęć",
+      "SELECT_ALL": "Zaznacz wszystkie",
+      "DESELECT_ALL": "Odznacz wszystkie",
+      "NO_IMAGES": "Nie znaleziono zdjęć treningowych w tym datasiecie.",
+      "SUBMIT": "Utwórz dataset"
+    },
+    "SECTIONS": {
+      "MISSING": {
+        "TITLE": "Brakujące w AI-Toolkit",
+        "DESC": "Te datasety są w źródle, ale nie ma ich w ai-toolkit/datasets"
+      },
+      "BOTH": {
+        "TITLE": "W obu lokalizacjach",
+        "DESC": "Te datasety są zarówno w źródle jak i w ai-toolkit/datasets"
+      },
+      "TARGET_ONLY": {
+        "TITLE": "Tylko w AI-Toolkit",
+        "DESC": "Te datasety są tylko w ai-toolkit/datasets"
+      }
+    }
+  },
+  "CIVITAI": {
+    "TITLE": "Integracja CivitAI",
+    "TABS": {
+      "BROWSER": "Przeglądarka",
+      "LOCAL": "Lokalna Przeglądarka",
+      "DOWNLOADS": "Pobieranie"
+    },
+    "BROWSER": {
+      "SEARCH": "Szukaj modeli...",
+      "USERNAME": "Użytkownik",
+      "QUERY": "Szukaj",
+      "SORT": "Sortowanie",
+      "PERIOD": "Okres",
+      "TYPE": "Typ",
+      "LIMIT": "Limit",
+      "PAGE": "Strona",
+      "DOWNLOAD": "Pobierz",
+      "QUEUED": "W kolejce",
+      "DETAILS": "Szczegóły",
+      "RESET": "Resetuj",
+      "MODEL_TYPES": "Typy modeli:",
+      "BASE_MODEL": "Bazowy model:",
+      "FIRST": "Pierwsza",
+      "PREV": "Poprzednia",
+      "NEXT": "Następna",
+      "JUMP_X": "Skocz o {{count}}",
+      "DOWNLOADED": "Pobrany",
+      "UPDATE": "Aktualizuj",
+      "NO_IMAGE": "Brak obrazu",
+      "DESCRIPTION": "Opis",
+      "DETAILS_TYPE": "Typ:",
+      "DETAILS_CREATOR": "Autor:",
+      "DETAILS_BASE_MODEL": "Model Bazowy:",
+      "DETAILS_PUBLISHED": "Opublikowano:",
+      "DETAILS_DOWNLOADS": "Pobrania:",
+      "OPEN_ON_CIVITAI": "Otwórz w CivitAI",
+      "LOCAL_PATH": "Folder lokalny",
+      "FILENAME": "Nazwa pliku",
+      "COPY": "Kopiuj",
+      "NO_IMAGES": "Brak dostępnych obrazów",
+      "SORT_NEWEST": "Najnowsze",
+      "SORT_HIGHEST_RATED": "Najwyżej oceniane",
+      "SORT_MOST_DOWNLOADED": "Najczęściej pobierane",
+      "NSFW": "NSFW",
+      "PERIOD_ALL": "Cały czas",
+      "PERIOD_YEAR": "Rok",
+      "PERIOD_MONTH": "Miesiąc",
+      "PERIOD_WEEK": "Tydzień",
+      "PERIOD_DAY": "Dzień"
+    },
+    "DOWNLOADS": {
+      "TITLE": "Kolejka pobierania",
+      "BULK_LABEL": "Masowe pobieranie (jeden link na linię)",
+      "BULK_SUBMIT": "Zaplanuj masowe pobieranie",
+      "EMPTY_QUEUE": "Brak aktywnych pobrań",
+      "IMAGE_QUEUE": "Kolejka obrazów w czasie rzeczywistym",
+      "WAITING": "Oczekujące",
+      "ACTIVE": "Aktywne",
+      "ERRORS": "Błędy",
+      "RESUME": "Wznów",
+      "PAUSE": "Wstrzymaj",
+      "TRY": "Spróbuj",
+      "CLEAR_QUEUE": "Wyczyść kolejkę",
+      "RESET_ACTIVE": "Resetuj aktywne",
+      "PAUSED": "WSTRZYMANO",
+      "CONCURRENCY_SETTINGS": "Ustawienia współbieżności",
+      "MODEL_DOWNLOADS": "Pobieranie modeli",
+      "IMAGE_DOWNLOADS": "Pobieranie obrazów",
+      "IN_QUEUE": "{{count}} w kolejce",
+      "LIVE_UPDATES": "Aktualizacje na żywo",
+      "REFRESH": "Odśwież",
+      "CURRENTLY_ACTIVE": "Obecnie aktywne",
+      "RUNNING": "Uruchomione",
+      "PROCESSING": "Przetwarzanie...",
+      "RETRY": "Ponów",
+      "DELETE": "Usuń",
+      "FORCE_START": "Wymuś start"
+    }
+  },
+  "MODELS": {
+    "TITLE": "Modele",
+    "SEARCH_PLACEHOLDER": "Szukaj modeli...",
+    "NO_MODELS": "Nie znaleziono modeli",
+    "SCANNING": "Skanowanie...",
+    "GENERATE_LIST": "Generuj listę",
+    "SORT_BY": "Sortuj według:",
+    "SORT": {
+      "NAME": "Nazwa (A-Z)",
+      "CREATED_DESC": "Data utworzenia (Najnowsze)",
+      "CREATED_ASC": "Data utworzenia (Najstarsze)",
+      "UPDATED_DESC": "Data aktualizacji (Najnowsze)",
+      "UPDATED_ASC": "Data aktualizacji (Najstarsze)"
+    },
+    "SHOW_ISSUES": "Tylko z problemami",
+    "SHOW_DUPLICATES": "Tylko duplikaty",
+    "DETAILS": {
+      "TYPE": "Typ:",
+      "LOCATION": "Lokalizacja:",
+      "COPY_PATH": "Kopiuj ścieżkę",
+      "CIVITAI": "Civitai:",
+      "COPY_LINK": "Kopiuj link",
+      "DOWNLOAD": "Pobierz",
+      "ISSUE": "Problem:",
+      "BROKEN_FILES": "Zawiera {{count}} uszkodzone pliki (< 17 bajtów)",
+      "CLEAN_BROKEN": "Wyczyść uszkodzone pliki",
+      "CLEANING": "Czyszczenie...",
+      "NO_SAFETENSOR": "Brak pliku .safetensors",
+      "NO_SAMPLES": "Brak przykładowych obrazów/wideo",
+      "SET_AS_COVER": "Ustaw jako okładkę",
+      "CURRENT_COVER": "Aktualna okładka"
+    }
+  },
+  "MEDIA": {
+    "VIDEO_NOT_SUPPORTED": "Twoja przeglądarka nie obsługuje tagu wideo.",
+    "FILENAME": "Nazwa pliku",
+    "PROMPT": "Prompt",
+    "NEGATIVE_PROMPT": "Negatywny Prompt",
+    "RESOURCES": "Zasoby",
+    "SAMPLE_TYPE": {
+      "COMMUNITY": "Społeczność",
+      "GENERATED": "Wygenerowane"
+    }
+  },
+  "README": {
+    "TITLE": "README",
+    "NO_README": "Nie znaleziono pliku README"
+  },
+  "COMFYUI": {
+    "TITLE": "Wyjścia ComfyUI",
+    "REFRESH": "Odśwież",
+    "LOADING": "Ładowanie wyjść...",
+    "NO_FILES": "Nie znaleziono plików wyjściowych"
+  },
+  "COMFYUI_OUTPUTS": {
+    "IMAGE_METADATA": "Metadane Obrazu",
+    "PROMPT": "Prompt",
+    "WORKFLOW": "Przepływ Pracy",
+    "NO_METADATA": "Brak metadanych dla tego obrazu"
+  },
+  "COMFYUI_PROMPTS": {
+    "WORKFLOW_TYPE": "Typ Przepływu",
+    "PROMPT": "Prompt",
+    "PROMPT_PLACEHOLDER": "Wprowadź swój prompt tutaj...",
+    "SEED": "Ziarno",
+    "RANDOMIZE": "Losuj",
+    "AUTO_REGENERATE_SEED": "Automatycznie regeneruj ziarno przy wysłaniu",
+    "LORA": "Ścieżka LoRA",
+    "LORA_MODE_REGULAR": "Zwykły",
+    "LORA_MODE_RANDOM_FRIEND": "Losowy Przyjaciel",
+    "LORA_MODE_RANDOM_CELEB": "Losowa Celebrytka",
+    "LORA_MODE_ONE_PER_CELEB": "Po jednym na każdą celebrytkę",
+    "LORA_MODE_MISSING_CELEBS": "Brakujące celebrytki",
+    "LORA_PLACEHOLDER": "WAN\\friends7\\wan_kwiaciarka_v1.safetensors",
+    "LORA_STRENGTH": "Siła LoRA",
+    "LORA_FILTER_PLACEHOLDER": "Wpisz aby filtrować LoRA...",
+    "NO_LORAS": "Nie znaleziono LoRA",
+    "QUANTITY": "Ilość",
+    "ONE_PER_CELEB_INFO": "W trybie \"Po jednym dla każdej celebrytki\" wszystkie LoRA celebrytek będą użyte",
+    "MISSING_CELEBS_INFO": "W trybie \"Brakujące celebrytki\" będą wygenerowane tylko celebrytki bez próbek dla wybranego typu przepływu pracy",
+    "QUEUE": "Kolejka",
+    "EMPTY": "pusta",
+    "TASK": "zadanie",
+    "TASKS": "zadań",
+    "SUBMIT": "Wyślij Prompt",
+    "SUBMITTING": "Wysyłanie...",
+    "PROMPT_FILE": "Plik Promptów (Szablony)",
+    "SELECT_FILE": "-- Wybierz plik --",
+    "SELECT_PROMPT": "-- Wybierz prompt --",
+    "PROMPTS_AVAILABLE": "promptów dostępnych",
+    "BATCH_MODE": "Tryb Wsadowy",
+    "BATCH_SINGLE": "Pojedynczy (użyj pola tekstowego)",
+    "BATCH_RANDOM_X": "Losowe X",
+    "BATCH_FIRST_X": "Pierwsze X",
+    "BATCH_ALL": "Wszystkie prompty",
+    "BATCH_QUANTITY": "Ilość:",
+    "BATCH_RANDOM_X_INFO": "Wyśle {{count}} losowych unikalnych promptów z pliku",
+    "BATCH_FIRST_X_INFO": "Wyśle pierwszych {{count}} promptów z pliku",
+    "BATCH_ALL_INFO": "Wyśle wszystkie {{count}} promptów z pliku",
+    "BATCH_DISABLED_MISSING_CELEBS": "Tryby wsadowe są wyłączone z \"Brakującymi celebrytkami\". Wybrany prompt z listy rozwijanej będzie użyty dla wszystkich brakujących celebrytek.",
+    "BATCH_CONFIRM": "Zamierzasz wysłać {{promptCount}} prompt(ów) × {{loraCount}} LoRA = {{totalCount}} łącznie. Kontynuować?",
+    "FOREVER_ON": "Ciągle WŁ",
+    "FOREVER_OFF": "Ciągle",
+    "FOREVER_DISABLED_HINT": "Nie można używać trybu 'Ciągle' z 'Wszystkie prompty', 'Po jednym na celebrytkę' lub 'Brakujące celebrytki'",
+    "CONSOLE": "Konsola",
+    "CONSOLE_TITLE": "Konsola deweloperska",
+    "CONSOLE_EMPTY": "Brak logów. Zacznij generować, aby zobaczyć aktywność.",
+    "CLEAR": "Wyczyść"
+  },
+  "COMMON": {
+    "EXPAND": "Rozwiń",
+    "COLLAPSE": "Zwiń",
+    "LOADING": "Ładowanie...",
+    "ERROR": "Błąd",
+    "IDS": "ID",
+    "CLOSE": "Zamknij",
+    "COPY": "Kopiuj"
+  },
+  "LANGUAGE": {
+    "SELECT": "Wybierz Język",
+    "ENGLISH": "Angielski",
+    "POLISH": "Polski"
+  },
+  "MALS": {
+    "TITLE": "Modele Mala",
+    "SEARCH": "Szukaj modeli...",
+    "CLEAR": "Wyczyść",
+    "MODE": {
+      "TRAINED": "Wytrenowane",
+      "NOT_TRAINED": "Niewytrenowane"
+    },
+    "STATS": {
+      "FOUND": "Znaleziono:"
+    },
+    "UPDATES": {
+      "RECENT": "Ostatnie Aktualizacje",
+      "UPDATED": "Zaktualizowano:"
+    },
+    "SORT": {
+      "LABEL": "Sortuj według:",
+      "NAME_ASC": "Nazwa (A-Z)",
+      "NAME_DESC": "Nazwa (Z-A)",
+      "DATE_DESC": "Data aktualizacji (Najnowsze)",
+      "DATE_ASC": "Data aktualizacji (Najstarsze)"
+    },
+    "PERIOD": {
+      "LABEL": "Okres:",
+      "ALL": "Wszystko",
+      "TODAY": "Dzisiaj",
+      "WEEK": "Ten tydzień",
+      "MONTH": "Ten miesiąc"
+    },
+    "PER_PAGE": "Na stronę:",
+    "ALL": "Wszystko",
+    "TYPES": {
+      "LORA": "SD LoRA",
+      "LOCON": "SD LoCon",
+      "EMBEDDING": "SD Embedding",
+      "FLUX": "Flux",
+      "WAN": "WAN",
+      "SDXL": "SDXL",
+      "QWEN": "Qwen",
+      "ZIMAGE": "Z Image"
+    },
+    "PAGINATION": {
+      "FIRST": "Pierwsza",
+      "PREV": "Poprzednia",
+      "PAGE_OF": "Strona {{current}} z {{total}}",
+      "NEXT": "Następna",
+      "LAST": "Ostatnia"
+    },
+    "LOADING": "Ładowanie modeli...",
+    "NO_FILES": "Nie znaleziono plików",
+    "DAILY": {
+      "PEOPLE": "Ludzie",
+      "MODELS": "Modele",
+      "NO_UPDATES": "Nie znaleziono aktualizacji dla tej daty.",
+      "NO_DATA": "Brak danych o aktualizacjach. Najpierw uruchom skanowanie."
+    }
+  },
+  "PAGINATION": {
+    "SHOWING": "Wyświetlanie",
+    "OF": "z",
+    "PAGE": "Strona",
+    "ITEMS_PER_PAGE": "Elementów na stronie",
+    "SAMPLES": "próbek",
+    "SHOW": "Pokaż:",
+    "PREV": "Poprzednia",
+    "NEXT": "Następna"
+  }
+}

@@ -1,0 +1,421 @@
+{
+  "APP": {
+    "TITLE": "Stabilis Web UI"
+  },
+  "MENU": {
+    "LIST_MODELS": "List Models",
+    "MALS_MODELS": "Mal's Models",
+    "COMFYUI_OUTPUTS": "ComfyUI Outputs",
+    "COMFYUI_PROMPTS": "ComfyUI Prompts",
+    "DATASETS": "Datasets",
+    "TRAINING": "Training",
+    "IMAGE_PROCESSING": "Image Processing",
+    "CIVITAI": "CivitAI",
+    "REDDIT": "Reddit FAQ"
+  },
+  "IMAGE_PROCESSING": {
+    "TITLE": "Dataset preparation",
+    "SETTINGS": {
+      "BUCKET_SIZE": "Bucket Size",
+      "ALLOW_NON_SQUARE": "Allow Non-Square",
+      "RENAME_DATASET": "Rename dataset",
+      "DATASET_PREFIX": "Dataset prefix"
+    },
+    "ACTIONS": {
+      "UPLOAD": "Upload Images",
+      "DOWNLOAD_DATASET": "Download Dataset",
+      "RESET": "Reset All",
+      "MOVE": "Move to training",
+      "DUPLICATE": "Duplicate",
+      "REMOVE": "Remove",
+      "ROTATE": "Rotate",
+      "SCALE_UP": "Scale Up",
+      "SCALE_DOWN": "Scale Down"
+    },
+    "CROPPER": {
+      "SNAP_TO_RATIO": "Snap to closest ratio",
+      "RESOLUTION": "Resolution: {{width}}x{{height}}",
+      "FILE": "File: {{name}}"
+    },
+    "UPLOADING": "Uploading {{count}} images...",
+    "PROCESSING": "Processing {{current}} of {{total}} images...",
+    "NO_IMAGES": "No images uploaded yet. Drag and drop or click to upload."
+  },
+  "TRAINING": {
+    "TARGET_LABEL": "Training Target",
+    "TARGET_META": "Target",
+    "TABS": {
+      "UPLOAD": "Upload & Train",
+      "JOBS": "Jobs Queue",
+      "STATUS": "Status"
+    },
+    "UPLOAD": {
+      "TITLE": "Upload & Train",
+      "MODEL_NAME": "Model Name",
+      "TOKEN": "Token",
+      "CLASS": "Class",
+      "TYPES": "Training Types",
+      "IMAGES": "Images",
+      "IMAGES_HINT": "Drop images here or choose files",
+      "SELECTED": "Selected",
+      "CLEAR": "Clear",
+      "REMOVE": "Remove",
+      "UPLOADING": "Uploading...",
+      "SUBMIT": "Upload & Train"
+    },
+    "DATASET_MODE": {
+      "TITLE": "Train from existing datasets (missing models)",
+      "MODEL_TYPE": "Model Type",
+      "SEARCH": "Search",
+      "MISSING_DATASETS": "Missing datasets",
+      "FOUND": "Found",
+      "SELECTED": "Selected",
+      "SELECT_ALL": "Select all",
+      "CLEAR_SELECTION": "Clear selection",
+      "TRAINING": "Training...",
+      "TRAIN_SELECTED": "Train selected",
+      "FILES": "Files"
+    },
+    "JOBS": {
+      "TITLE": "Jobs Queue",
+      "ESTIMATED_TOTAL": "Estimated total",
+      "ESTIMATED_FINISH": "Estimated finish",
+      "STARTS_IN": "Starts in",
+      "MOVE_TOP": "Move to top",
+      "MOVE_UP": "Move up",
+      "MOVE_DOWN": "Move down",
+      "MOVE_BOTTOM": "Move to bottom",
+      "REMOVE": "Remove from queue"
+    }
+  },
+  "CIVITAI": {
+    "TITLE": "CivitAI Integration",
+    "TABS": {
+      "BROWSER": "Browser",
+      "LOCAL": "Local Browser",
+      "DOWNLOADS": "Downloads"
+    },
+    "BROWSER": {
+      "SEARCH": "Search models...",
+      "USERNAME": "Username",
+      "QUERY": "Query",
+      "SORT": "Sort",
+      "PERIOD": "Period",
+      "TYPE": "Type",
+      "LIMIT": "Limit",
+      "PAGE": "Page",
+      "DOWNLOAD": "Download",
+      "QUEUED": "In Queue",
+      "DOWNLOAD_SAMPLES": "Download Samples",
+      "DETAILS": "Details",
+      "RESET": "Reset",
+      "MODEL_TYPES": "Model types:",
+      "BASE_MODEL": "Base model:",
+      "FIRST": "First",
+      "PREV": "Prev",
+      "NEXT": "Next",
+      "JUMP_X": "Jump {{count}}",
+      "DOWNLOADED": "Downloaded",
+      "UPDATE": "Update",
+      "NO_IMAGE": "No Image",
+      "DESCRIPTION": "Description",
+      "DETAILS_TYPE": "Type:",
+      "DETAILS_CREATOR": "Creator:",
+      "DETAILS_BASE_MODEL": "Base Model:",
+      "DETAILS_PUBLISHED": "Published:",
+      "DETAILS_DOWNLOADS": "Downloads:",
+      "OPEN_ON_CIVITAI": "Open on CivitAI",
+      "LOCAL_PATH": "Local Folder",
+      "FILENAME": "Local Filename",
+      "COPY": "Copy",
+      "NO_IMAGES": "No images available",
+      "SORT_NEWEST": "Newest",
+      "SORT_HIGHEST_RATED": "Highest Rated",
+      "SORT_MOST_DOWNLOADED": "Most Downloaded",
+      "NSFW": "NSFW",
+      "PERIOD_ALL": "All Time",
+      "PERIOD_YEAR": "Year",
+      "PERIOD_MONTH": "Month",
+      "PERIOD_WEEK": "Week",
+      "PERIOD_DAY": "Day"
+    },
+    "DOWNLOADS": {
+      "TITLE": "Download Queue",
+      "BULK_LABEL": "Bulk Download (one link per line)",
+      "BULK_SUBMIT": "Schedule Bulk Download",
+      "EMPTY_QUEUE": "No downloads in progress",
+      "IMAGE_QUEUE": "Real-time Image Queue",
+      "WAITING": "Waiting",
+      "ACTIVE": "Active",
+      "ERRORED": "Errored",
+      "ERRORS": "Errors",
+      "RESUME": "Resume",
+      "PAUSE": "Pause",
+      "TRY": "Try",
+      "CLEAR_QUEUE": "Clear Queue",
+      "REQUEUE_ERRORED": "Add Errored to Waiting",
+      "RESET_ACTIVE": "Reset Active",
+      "PAUSED": "PAUSED",
+      "CONCURRENCY_SETTINGS": "Concurrency Settings",
+      "MODEL_DOWNLOADS": "Model Downloads",
+      "IMAGE_DOWNLOADS": "Image Downloads",
+      "IN_QUEUE": "{{count}} in queue",
+      "LIVE_UPDATES": "Live Updates",
+      "REFRESH": "Refresh",
+      "CURRENTLY_ACTIVE": "Currently Active",
+      "RUNNING": "Running",
+      "PROCESSING": "Processing...",
+      "RETRY": "Retry",
+      "DELETE": "Delete",
+      "FORCE_START": "Force Start"
+    }
+  },
+  "DATASETS": {
+    "TITLE": "Dataset Management",
+    "REFRESH": "Refresh Comparison",
+    "SCANNING": "Scanning datasets...",
+    "FILES": "files",
+    "COPY_LINK_TO": "Copy link to",
+    "COPY_LINK_TO_TITLE": "Copy link to {{name}}",
+    "LINK_COPIED": "Link copied!",
+    "ERROR_LOAD": "Failed to load dataset comparison",
+    "SUMMARY": {
+      "MISSING": "Missing in AI-Toolkit",
+      "BOTH": "In Both Locations",
+      "TARGET_ONLY": "Only in AI-Toolkit"
+    },
+    "PREPARE_TOOLKIT": "Prepare AI Toolkit dataset",
+    "PREPARE_MODAL": {
+      "TITLE": "Prepare AI Toolkit dataset: {{name}}",
+      "SELECTED": "{{count}} images selected",
+      "SELECT_ALL": "Select All",
+      "DESELECT_ALL": "Deselect All",
+      "NO_IMAGES": "No training images found in this dataset.",
+      "SUBMIT": "Create Dataset"
+    },
+    "SECTIONS": {
+      "MISSING": {
+        "TITLE": "Missing in AI-Toolkit",
+        "DESC": "These datasets exist in the source but not in ai-toolkit/datasets"
+      },
+      "BOTH": {
+        "TITLE": "In Both Locations",
+        "DESC": "These datasets exist in both source and ai-toolkit/datasets"
+      },
+      "TARGET_ONLY": {
+        "TITLE": "Only in AI-Toolkit",
+        "DESC": "These datasets exist only in ai-toolkit/datasets"
+      }
+    }
+  },
+  "MODELS": {
+    "TITLE": "Models",
+    "SEARCH_PLACEHOLDER": "Search models...",
+    "NO_MODELS": "No models found",
+    "SCANNING": "Scanning...",
+    "GENERATE_LIST": "Generate List",
+    "SORT_BY": "Sort by:",
+    "SORT": {
+      "NAME": "Name (A-Z)",
+      "CREATED_DESC": "Date Created (Newest)",
+      "CREATED_ASC": "Date Created (Oldest)",
+      "UPDATED_DESC": "Date Updated (Newest)",
+      "UPDATED_ASC": "Date Updated (Oldest)"
+    },
+    "SHOW_ISSUES": "Show Issues Only",
+    "SHOW_DUPLICATES": "Show Duplicates Only",
+    "DETAILS": {
+      "TYPE": "Type:",
+      "LOCATION": "Location:",
+      "COPY_PATH": "Copy Path",
+      "CIVITAI": "Civitai:",
+      "COPY_LINK": "Copy Link",
+      "DOWNLOAD": "Download",
+      "DOWNLOAD_SAMPLES": "Download Samples",
+      "ISSUE": "Issue:",
+      "BROKEN_FILES": "Contains {{count}} broken files (< 17 bytes)",
+      "CLEAN_BROKEN": "Clean Broken Files",
+      "CLEANING": "Cleaning...",
+      "NO_SAFETENSOR": "No .safetensors file found",
+      "NO_SAMPLES": "No sample images/videos found",
+      "SET_AS_COVER": "Set as Cover",
+      "CURRENT_COVER": "Current Cover"
+    }
+  },
+  "MEDIA": {
+    "VIDEO_NOT_SUPPORTED": "Your browser does not support the video tag.",
+    "FILENAME": "Filename",
+    "PROMPT": "Prompt",
+    "NEGATIVE_PROMPT": "Negative Prompt",
+    "RESOURCES": "Resources",
+    "SAMPLE_TYPE": {
+      "COMMUNITY": "Community",
+      "GENERATED": "Generated"
+    }
+  },
+  "README": {
+    "TITLE": "README",
+    "NO_README": "No README file found"
+  },
+  "COMFYUI": {
+    "TITLE": "ComfyUI Outputs",
+    "REFRESH": "Refresh",
+    "LOADING": "Loading outputs...",
+    "NO_FILES": "No output files found"
+  },
+  "COMFYUI_OUTPUTS": {
+    "IMAGE_METADATA": "Image Metadata",
+    "PROMPT": "Prompt",
+    "WORKFLOW": "Workflow",
+    "NO_METADATA": "No metadata available for this image"
+  },
+  "COMFYUI_PROMPTS": {
+    "WORKFLOW_TYPE": "Workflow Type",
+    "PROMPT": "Prompt",
+    "PROMPT_PLACEHOLDER": "Enter your prompt here...",
+    "SEED": "Seed",
+    "RANDOMIZE": "Randomize",
+    "AUTO_REGENERATE_SEED": "Auto-regenerate seed on submit",
+    "LORA": "LoRA Path",
+    "LORA_MODE_REGULAR": "Regular",
+    "LORA_MODE_RANDOM_FRIEND": "Random Friend",
+    "LORA_MODE_RANDOM_CELEB": "Random Celeb",
+    "LORA_MODE_ONE_PER_CELEB": "One per each Celeb",
+    "LORA_MODE_MISSING_CELEBS": "Missing Celebs",
+    "LORA_MODE_ONE_PER_PRESET": "One per each Preset",
+    "LORA_MODE_RANDOM_PRESET": "Random Preset",
+    "LORA_PLACEHOLDER": "WAN\\friends7\\wan_kwiaciarka_v1.safetensors",
+    "LORA_STRENGTH": "LoRA Strength",
+    "LORA_FILTER_PLACEHOLDER": "Type to filter LoRAs...",
+    "NO_LORAS": "No LoRAs found",
+    "QUANTITY": "Quantity",
+    "ONE_PER_CELEB_INFO": "In \"One per each Celeb\" mode, all celebrity LoRAs will be used",
+    "MISSING_CELEBS_INFO": "In \"Missing Celebs\" mode, only celebrities without samples for the selected workflow type will be generated",
+    "ONE_PER_PRESET_INFO": "Will submit one prompt for each of the {{count}} persona presets",
+    "RANDOM_PRESET_INFO": "Will submit with a randomly selected persona preset",
+    "MULTI_LORA_MODE": "MultiLora Mode",
+    "PERSONA_PRESET": "Persona Preset",
+    "SELECT_PERSONA": "-- Select a persona --",
+    "SELECT_LORA": "-- Select a LoRA --",
+    "ADD_LORA": "Add LoRA",
+    "EQUALIZE_STRENGTHS": "Equalize Strengths",
+    "RANDOMIZE_LORAS": "Randomize",
+    "CREATE_PRESET": "Create New Preset",
+    "SAVE_PRESET": "Save changes to preset",
+    "SAVE": "Save",
+    "PRESET_CODE_PLACEHOLDER": "Code (e.g. magdolata)",
+    "PRESET_NAME_PLACEHOLDER": "Name (e.g. Magdolata v2)",
+    "CREATE": "Create",
+    "LORAS_FOUND": "{{count}} LoRAs found",
+    "NEED_AT_LEAST_2": "Need at least 2",
+    "QUEUE": "Queue",
+    "EMPTY": "empty",
+    "TASK": "task",
+    "TASKS": "tasks",
+    "SUBMIT": "Submit Prompt",
+    "SUBMITTING": "Submitting...",
+    "PROMPT_FILE": "Prompt File (Boilerplates)",
+    "SELECT_FILE": "-- Select a file --",
+    "SELECT_PROMPT": "-- Select a prompt --",
+    "PROMPTS_AVAILABLE": "prompts available",
+    "BATCH_MODE": "Batch Mode",
+    "BATCH_SINGLE": "Single (use textarea)",
+    "BATCH_RANDOM_X": "Random X",
+    "BATCH_FIRST_X": "First X",
+    "BATCH_ALL": "All prompts",
+    "BATCH_QUANTITY": "Quantity:",
+    "BATCH_RANDOM_X_INFO": "Will submit {{count}} random unique prompts from the file",
+    "BATCH_FIRST_X_INFO": "Will submit the first {{count}} prompts from the file",
+    "BATCH_ALL_INFO": "Will submit all {{count}} prompts from the file",
+    "BATCH_DISABLED_MISSING_CELEBS": "Batch modes are disabled with \"Missing Celebs\". The selected prompt from the dropdown will be used for all missing celebs.",
+    "BATCH_CONFIRM": "You are about to submit {{promptCount}} prompt(s) × {{loraCount}} LoRA(s) = {{totalCount}} total submissions. Continue?",
+    "FOREVER_ON": "Forever ON",
+    "FOREVER_OFF": "Forever",
+    "FOREVER_DISABLED_HINT": "Cannot use Forever with 'All prompts', 'One per Celeb', or 'Missing Celebs' modes",
+    "CONSOLE": "Console",
+    "CONSOLE_TITLE": "Developer Console",
+    "CONSOLE_EMPTY": "No logs yet. Start generating to see activity.",
+    "CLEAR": "Clear"
+  },
+  "COMMON": {
+    "EXPAND": "Expand",
+    "COLLAPSE": "Collapse",
+    "LOADING": "Loading...",
+    "ERROR": "Error",
+    "IDS": "IDs",
+    "CLOSE": "Close",
+    "COPY": "Copy"
+  },
+  "LANGUAGE": {
+    "SELECT": "Select Language",
+    "ENGLISH": "English",
+    "POLISH": "Polish"
+  },
+  "MALS": {
+    "TITLE": "Mal's Models",
+    "SEARCH": "Search models...",
+    "CLEAR": "Clear",
+    "MODE": {
+      "TRAINED": "Trained",
+      "NOT_TRAINED": "Not trained"
+    },
+    "STATS": {
+      "FOUND": "Found:"
+    },
+    "UPDATES": {
+      "RECENT": "Recent Updates",
+      "UPDATED": "Updated:"
+    },
+    "SORT": {
+      "LABEL": "Sort by:",
+      "NAME_ASC": "Name (A-Z)",
+      "NAME_DESC": "Name (Z-A)",
+      "DATE_DESC": "Update Date (Newest)",
+      "DATE_ASC": "Update Date (Oldest)"
+    },
+    "PERIOD": {
+      "LABEL": "Period:",
+      "ALL": "All Time",
+      "TODAY": "Today",
+      "WEEK": "This Week",
+      "MONTH": "This Month"
+    },
+    "PER_PAGE": "Per page:",
+    "ALL": "All",
+    "TYPES": {
+      "LORA": "SD LoRA",
+      "LOCON": "SD LoCon",
+      "EMBEDDING": "SD Embedding",
+      "FLUX": "Flux",
+      "WAN": "WAN",
+      "SDXL": "SDXL",
+      "QWEN": "Qwen",
+      "ZIMAGE": "Z Image"
+    },
+    "PAGINATION": {
+      "FIRST": "First",
+      "PREV": "Previous",
+      "PAGE_OF": "Page {{current}} of {{total}}",
+      "NEXT": "Next",
+      "LAST": "Last"
+    },
+    "LOADING": "Loading models...",
+    "NO_FILES": "No files found",
+    "DAILY": {
+      "PEOPLE": "People",
+      "MODELS": "Models",
+      "NO_UPDATES": "No updates found for this date.",
+      "NO_DATA": "No update data available. Run the update scan first."
+    }
+  },
+  "PAGINATION": {
+    "SHOWING": "Showing",
+    "OF": "of",
+    "PAGE": "Page",
+    "ITEMS_PER_PAGE": "Items per page",
+    "SAMPLES": "samples",
+    "SHOW": "Show:",
+    "PREV": "Prev",
+    "NEXT": "Next"
+  }
+}
