@@ -207,9 +207,12 @@ marimo/_lsp/
 __marimo__/
 
 # Project specific
-/input
+/input*
 /output
 /user
 /docs
+/video
+/language
 venv_activate.bat
 venv_update.bat
+*.whl
