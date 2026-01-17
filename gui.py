@@ -51,8 +51,6 @@ except ImportError:
     pass
 
 from src.gui import create_ui
-from src.gui.styles import CSS
-from src.gui.js import JS
 from src.core.config import ConfigManager
 import src.core.hardware as hardware
 
@@ -181,4 +179,4 @@ if __name__ == "__main__":
             pass
     
     ui = create_ui(startup_message=startup_msg)
-    ui.launch(css=CSS, js=JS)
+    ui.launch(show_api=False)

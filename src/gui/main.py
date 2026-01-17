@@ -56,7 +56,7 @@ def create_ui(startup_message=None):
     save_gallery_cols = create_gallery_cols_saver(app)
     version_change_handler = create_version_change_handler(app)
     
-    with gr.Blocks(title="A Thousand Words") as demo:
+    with gr.Blocks(title="A Thousand Words", css=CSS, js=JS) as demo:
         
         # Header
         with gr.Row(elem_classes="header-row"):

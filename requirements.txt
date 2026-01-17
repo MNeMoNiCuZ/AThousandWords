@@ -43,3 +43,6 @@ colorama
 # WD14 Tagger
 onnxruntime-gpu
 opencv-python-headless
+
+# Cropping Tool
+smartcrop
