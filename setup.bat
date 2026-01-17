@@ -134,7 +134,8 @@ echo   2. INSTALL FLASH ATTENTION (Optional, for better performance)
 echo      Download a pre-built wheel from:
 echo        https://github.com/mjun0812/flash-attention-prebuild-wheels/releases
 echo      or: https://huggingface.co/lldacing/flash-attention-windows-wheel/tree/main
-echo      Then: pip install flash_attn-YOUR_VERSION.whl
+echo      Place the .whl file in this folder, then run:
+echo        pip install flash_attn-2.8.2+cu128torch2.8-cp312-cp312-win_amd64.whl
 echo.
 echo   3. INSTALL REQUIREMENTS
 echo      Run: pip install -r requirements.txt

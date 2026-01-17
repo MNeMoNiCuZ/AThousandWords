@@ -42,8 +42,9 @@ A powerful, customizable, and user-friendly batch captioning tool for VLM (Visio
    - **Recommended**: [mjun0812's Releases](https://github.com/mjun0812/flash-attention-prebuild-wheels/releases)
    - **Alternative**: [lldacing's HuggingFace Repo](https://huggingface.co/lldacing/flash-attention-windows-wheel/tree/main)
    
+   Place the `.whl` file in your project folder, then install your version, for example:
    ```bash
-   pip install flash_attn-YOUR_VERSION.whl
+   pip install flash_attn-2.8.2+cu128torch2.8-cp312-cp312-win_amd64.whl
    ```
 
 4. **Install Requirements**:
