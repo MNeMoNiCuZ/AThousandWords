@@ -1,16 +1,18 @@
 # A Thousand Words - Batch Captioning Tool
 
-A powerful, customizable, and user-friendly batch captioning tool for VLM (Vision Language Models). Designed for dataset creation, this tool supports 18+ state-of-the-art models, offering both a feature-rich GUI and a fully scriptable CLI.
+A powerful, customizable, and user-friendly batch captioning tool for VLM (Vision Language Models). Designed for dataset creation, this tool supports 20+ state-of-the-art models and versions, offering both a feature-rich GUI and a fully scriptable CLI commands.
 
 ## Key Features
 
 - **Extensive Model Support**: 18+ models including taggers (WD14, JoyTag), VLMs (SmolVLM, Qwen, Moondream), and specialized captioners (JoyCaption, Florence-2).
-- **Batch Processing**: High-throughput captioning optimized for large datasets with configurable batch sizes.
+- **Batch Processing**: Process entire folders and datasets in one go with a GUI or simple CLI command.
+- **Multi Model Batch Processing**: Process the same image with several different models all at once (queued).
 - **Dual Interface**:
   - **Gradio GUI**: Interactive interface for testing models, previewing results, and fine-tuning settings with immediate visual feedback.
   - **CLI**: Robust command-line interface for automated pipelines, scripting, and massive batch jobs.
-- **Highly Customizable**: Extensive format options including prefixes/suffixes, token limits, sampling parameters (temperature, top_k), and multiple output formats (txt, json, caption).
-- **Advanced Capabilities**: Video captioning support, chain-of-thought reasoning toggles, model-specific modes, and complex prompt template management.
+- **Highly Customizable**: Extensive format options including prefixes/suffixes, token limits, sampling parameters, output formats and more.
+- **Customizable Input Prompts**: Use prompt presets, customized prompt  presets, or load input prompts from text-files or from image metadata.
+- **Video Captioning**: Switch between Image or Video models.
 
 ---
 
@@ -21,7 +23,7 @@ A powerful, customizable, and user-friendly batch captioning tool for VLM (Visio
 - **CUDA**: 12.8
 - **PyTorch**: 2.8.0+cu128
 
-### Quick Setup (Recommended)
+### Setup Instructions
 
 1. **Run the setup script**:
    ```
@@ -29,7 +31,11 @@ A powerful, customizable, and user-friendly batch captioning tool for VLM (Visio
    ```
    This creates a virtual environment (`venv`), upgrades pip, and installs `uv` (fast package installer).
 
-2. **Install PyTorch**:
+   It does not install the requirements. This need to be done manually after PyTorch and Flash Attention (optional) is installed.
+
+   After the virtual environment creation, the setup should leave you with the virtual environment activated. It should say (venv) at the start of your console. Ensure the remaining steps is done with the virtual environment active. You can also use the `venv_activate.bat` script to activate the environment.
+   
+3. **Install PyTorch**:
    Visit [PyTorch Get Started](https://pytorch.org/get-started/locally/) and select your CUDA version.
    
    Example for CUDA 12.8:
@@ -37,47 +43,29 @@ A powerful, customizable, and user-friendly batch captioning tool for VLM (Visio
    pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128
    ```
 
-3. **Install Flash Attention** (Optional, for better performance):
+4. **Install Flash Attention** (Optional, for better performance on some models):
    Download a pre-built wheel compatible with your setup:
-   - **Recommended**: [mjun0812's Releases](https://github.com/mjun0812/flash-attention-prebuild-wheels/releases)
-   - **Alternative**: [lldacing's HuggingFace Repo](https://huggingface.co/lldacing/flash-attention-windows-wheel/tree/main)
+   - **For Recommended Environment**: [For Python 3.12, Torch 2.8.0, CUDA 12.8](https://github.com/mjun0812/flash-attention-prebuild-wheels/releases/tag/v0.4.10)
+   - **Other Versions**: [mjun0812's Releases](https://github.com/mjun0812/flash-attention-prebuild-wheels/releases)
+   - **More Other Versions**: [lldacing's HuggingFace Repo](https://huggingface.co/lldacing/flash-attention-windows-wheel/tree/main)
    
    Place the `.whl` file in your project folder, then install your version, for example:
    ```bash
    pip install flash_attn-2.8.2+cu128torch2.8-cp312-cp312-win_amd64.whl
    ```
 
-4. **Install Requirements**:
-   ```bash
-   pip install -r requirements.txt
-   ```
-   Or with uv (faster):
+5. **Install Requirements**:
    ```bash
    uv pip install -r requirements.txt
    ```
 
-5. **Launch the Application**:
+6. **Launch the Application**:
    ```bash
    gui.bat
    ```
-
-### Manual Setup
-
-If you prefer manual control, follow these steps **in order**:
-
-1. **Create Virtual Environment** (Python 3.12):
+   or
    ```bash
-   python -m venv venv
-   .\venv\Scripts\activate
-   ```
-
-2. **Install PyTorch** for your CUDA version from [pytorch.org](https://pytorch.org/get-started/locally/)
-
-3. **Install Flash Attention 2** (optional but recommended for performance)
-
-4. **Install Requirements**:
-   ```bash
-   pip install -r requirements.txt
+   py gui.py
    ```
 
 ---
@@ -88,7 +76,7 @@ If you prefer manual control, follow these steps **in order**:
 
 The main workspace for image and video captioning:
 
-- **Model Selection**: Choose from 18+ models with real-time model information display (VRAM requirements, speed, capabilities, license)
+- **Model Selection**: Choose from 20+ models with real-time model information display (VRAM requirements, speed, capabilities, license)
 - **Prompt Configuration**: Use preset prompt templates or create custom prompts with support for system prompts
 - **Generation Parameters**: Fine-tune temperature, top_k, max tokens, and repetition penalty for optimal output quality
 - **Dataset Management**: Load folders with recursive search, filter by file extension, apply processing limits
