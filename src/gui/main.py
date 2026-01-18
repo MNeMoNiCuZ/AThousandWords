@@ -10,7 +10,7 @@ import logging
 
 from .app import CaptioningApp
 from .styles import CSS
-from .js import JS
+from .js import get_js
 from .handlers import (
     create_update_model_settings_handler,
     create_auto_save_handler,
@@ -55,6 +55,11 @@ def create_ui(startup_message=None):
     ui_auto_save = create_auto_save_handler(app)
     save_gallery_cols = create_gallery_cols_saver(app)
     version_change_handler = create_version_change_handler(app)
+    
+    # Get theme mode from config and generate JS with theme enforcement
+    cfg_initial = app.config_mgr.get_global_settings()
+    theme_mode = cfg_initial.get('theme_mode', 'Dark')
+    theme_js = get_js(theme_mode)
     
     with gr.Blocks(title="A Thousand Words") as demo:
         
@@ -143,6 +148,7 @@ def create_ui(startup_message=None):
                 settings_reset_btn = settings_components["reset_btn"]
                 settings_reset_confirm_btn = settings_components["reset_confirm_btn"]
                 settings_reset_cancel_btn = settings_components["reset_cancel_btn"]
+                theme_mode_radio = settings_components["theme_mode"]
 
 
             # Tab 5: Model Information
@@ -391,7 +397,7 @@ def create_ui(startup_message=None):
         
         settings_save_btn.click(
             app.save_settings_simple,
-            inputs=[vram_inp, system_ram_inp, models_chk, gal_cols, gal_rows_slider, g_unload_model, model_order_textbox, items_per_page],
+            inputs=[vram_inp, system_ram_inp, models_chk, gal_cols, gal_rows_slider, g_unload_model, model_order_textbox, items_per_page, theme_mode_radio],
             outputs=[model_sel, models_chk, model_order_radio] + multi_checkboxes_list + multi_formats_list
         )
 
@@ -488,4 +494,4 @@ def create_ui(startup_message=None):
             
             demo.load(show_startup_msg, outputs=[])
 
-    return demo
+    return demo, theme_js

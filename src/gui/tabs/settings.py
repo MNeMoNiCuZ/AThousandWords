@@ -45,20 +45,23 @@ def create_settings_tab(app, cfg: dict, models_chk) -> dict:
             info="Your System RAM for batch size recommendations"
         )
         
+        theme_mode_val = cfg.get('theme_mode', 'Dark')
+        theme_mode = gr.Dropdown(
+            choices=["Dark", "Light", "System"],
+            label="Theme",
+            value=theme_mode_val,
+            info="UI color theme (requires restart)",
+            interactive=True
+        )
+
         unload_val = cfg.get('unload_model', True)
         g_unload_model = gr.Checkbox(
             label="Unload Model", 
             value=unload_val, 
             info="Unload model from VRAM immediately after finishing."
         )
-        
-        items_per_page = gr.Number(
-            label="Items Per Page", 
-            value=app.gallery_items_per_page, 
-            precision=0, 
-            minimum=1, 
-            info="Images per gallery page"
-        )
+
+    with gr.Row():
         gal_cols = gr.Slider(
             2, 16, step=1, 
             label="Gallery Columns", 
@@ -70,6 +73,14 @@ def create_settings_tab(app, cfg: dict, models_chk) -> dict:
             label="Gallery Rows", 
             value=app.gallery_rows, 
             info="Rows to display (0 = hide)"
+        )
+
+        items_per_page = gr.Number(
+            label="Gallery Items Per Page", 
+            value=app.gallery_items_per_page, 
+            precision=0, 
+            minimum=1, 
+            info="Images per gallery page (pagination)"
         )
     
     gr.Markdown("### 📦 Model Management")
@@ -119,6 +130,7 @@ def create_settings_tab(app, cfg: dict, models_chk) -> dict:
         "items_per_page": items_per_page,
         "gal_cols": gal_cols,
         "gal_rows": gal_rows_slider,
+        "theme_mode": theme_mode,
         "model_order_state": model_order_state,
         "model_order_radio": model_order_radio,
         "model_order_textbox": model_order_textbox,

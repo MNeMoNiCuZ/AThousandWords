@@ -235,9 +235,9 @@ class CaptioningApp:
         """Save settings from the main UI directly to user_config.yaml."""
         return _settings.save_settings(self, vram, models_checked, gal_cols, gal_rows, limit_cnt, o_dir, o_fmt, over, rec, con, unload, pre, suf, clean, collapse, normalize, remove_cn, strip_loop, max_w, max_h, current_mod_id, model_ver, batch_sz, max_tok, settings_state, items_per_page)
     
-    def save_settings_simple(self, vram, system_ram, models_checked, gal_cols, gal_rows, unload, model_order_text, items_per_page):
+    def save_settings_simple(self, vram, system_ram, models_checked, gal_cols, gal_rows, unload, model_order_text, items_per_page, theme_mode):
         """Save settings from the Settings tab (simplified version)."""
-        return _settings.save_settings_simple(self, vram, system_ram, models_checked, gal_cols, gal_rows, unload, model_order_text, items_per_page)
+        return _settings.save_settings_simple(self, vram, system_ram, models_checked, gal_cols, gal_rows, unload, model_order_text, items_per_page, theme_mode)
     
     def reset_to_defaults(self):
         """Delete user_config.yaml to reset all settings to defaults."""

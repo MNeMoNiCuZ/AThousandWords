@@ -3,7 +3,32 @@
 Javascript injection for the GUI.
 """
 
-JS = r"""
+def get_js(theme_mode="dark"):
+    """Generate JavaScript with the specified theme mode setting."""
+    return r"""
+    // ========================================
+    // THEME MODE ENFORCEMENT
+    // ========================================
+    (function() {
+        const savedTheme = '""" + theme_mode.lower() + r"""';
+        const url = new URL(window.location);
+        const currentTheme = url.searchParams.get('__theme');
+        
+        // Only redirect if theme doesn't match and savedTheme is not 'system'
+        if (savedTheme !== 'system' && currentTheme !== savedTheme) {
+            console.log('[Theme] Enforcing theme mode:', savedTheme);
+            url.searchParams.set('__theme', savedTheme);
+            window.location.replace(url.href);
+        } else if (savedTheme === 'system' && currentTheme) {
+            // If system mode, remove the theme parameter to let browser decide
+            console.log('[Theme] Using system preference');
+            url.searchParams.delete('__theme');
+            if (currentTheme) {
+                window.location.replace(url.href);
+            }
+        }
+    })();
+
     console.log("[JS] Injecting VRAM click listener (Robust-Selector Version)...");
     
     // Use capture phase on window/documentElement to guarantee we see the event first
@@ -102,3 +127,7 @@ JS = r"""
         }
     })();
 """
+
+# Default JS for backward compatibility
+JS = get_js("dark")
+

@@ -220,7 +220,7 @@ def save_settings(app, vram, models_checked, gal_cols, gal_rows, limit_cnt, o_di
     return []
 
 
-def save_settings_simple(app, vram, system_ram, models_checked, gal_cols, gal_rows, unload, model_order_text, items_per_page):
+def save_settings_simple(app, vram, system_ram, models_checked, gal_cols, gal_rows, unload, model_order_text, items_per_page, theme_mode):
     """Save settings from the Settings tab (simplified version)."""
     model_order_lines = [line.strip() for line in model_order_text.split('\n') if line.strip()]
     
@@ -239,7 +239,8 @@ def save_settings_simple(app, vram, system_ram, models_checked, gal_cols, gal_ro
         'gallery_items_per_page': int(items_per_page) if items_per_page else 50,
         'disabled_models': list(set(app.models) - set(models_checked)),
         'unload_model': unload,
-        'model_order': valid_model_order
+        'model_order': valid_model_order,
+        'theme_mode': theme_mode
     })
     
     app.gallery_columns = int(gal_cols)
