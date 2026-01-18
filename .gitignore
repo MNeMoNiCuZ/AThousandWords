@@ -210,9 +210,8 @@ __marimo__/
 /input*
 /output
 /user
-/docs
 /video
 /language
 venv_activate.bat
-venv_update.bat
 *.whl
+/docs/GEMINI.md

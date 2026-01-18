@@ -31,7 +31,7 @@ class ToolConfig:
     name: str
     display_name: str
     description: str
-    icon: str = "🔧"
+    icon: str = ""
 
 
 class BaseTool(ABC):

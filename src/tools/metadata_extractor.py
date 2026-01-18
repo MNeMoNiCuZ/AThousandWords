@@ -15,6 +15,15 @@ from typing import Dict, Any
 
 from .base import BaseTool, ToolConfig
 
+# Colorama for console colors
+try:
+    from colorama import Fore, Style
+except ImportError:
+    class Fore:
+        CYAN = YELLOW = GREEN = RED = ''
+    class Style:
+        RESET_ALL = ''
+
 
 class MetadataTool(BaseTool):
     """Tool for extracting image metadata and creating captions."""
@@ -27,6 +36,48 @@ class MetadataTool(BaseTool):
             description="### Extract Metadata to Captions\nExtract prompts from PNG Info, EXIF, etc. to create caption files.",
             icon=""
         )
+    
+    def _get_defaults(self) -> dict:
+        """Return default values for all settings."""
+        return {
+            "source_type": "all",
+            "update_caption": True,
+            "prefix": "",
+            "suffix": "",
+            "clean": True,
+            "collapse": True,
+            "normalize": True,
+            "output_dir": "",
+            "extension": "txt",
+        }
+    
+    def get_loaded_values(self, app) -> list:
+        """Load saved settings from user config."""
+        import gradio as gr
+        
+        defaults = self._get_defaults()
+        saved = {}
+        
+        try:
+            tool_settings = app.config_mgr.user_config.get("tool_settings", {})
+            saved = tool_settings.get("metadata_extractor", {})
+        except Exception:
+            pass
+        
+        values = {**defaults, **saved}
+        
+        # Order must match create_gui inputs list
+        return [
+            gr.update(value=values["source_type"]),
+            gr.update(value=values["update_caption"]),
+            gr.update(value=values["prefix"]),
+            gr.update(value=values["suffix"]),
+            gr.update(value=values["clean"]),
+            gr.update(value=values["collapse"]),
+            gr.update(value=values["normalize"]),
+            gr.update(value=values["output_dir"]),
+            gr.update(value=values["extension"]),
+        ]
     
     def apply_to_dataset(self, dataset, source_type: str = "all", update_caption: bool = True,
                          prefix: str = "", suffix: str = "", 
@@ -54,21 +105,13 @@ class MetadataTool(BaseTool):
         from src.features.core.normalize_text import NormalizeTextFeature
         from pathlib import Path
         
-        # ANSI colors
-        CYAN = "\033[96m"
-        GREEN = "\033[92m"
-        YELLOW = "\033[93m"
-        RED = "\033[91m"
-        RESET = "\033[0m"
-        DIM = "\033[2m"
-        
         count = 0
         saved_count = 0
         no_meta_count = 0
         error_count = 0
         
         # Log settings
-        print(f"{CYAN}Settings:{RESET}")
+        print(f"{Fore.CYAN}Settings:{Style.RESET_ALL}")
         print(f"  Source: {source_type}")
         print(f"  Output Dir: {output_dir or '(same as source)'}")
         print(f"  Extension: {extension}")
@@ -115,18 +158,18 @@ class MetadataTool(BaseTool):
                         
                     count += 1
                     preview = pos_prompt[:60] + "..." if len(pos_prompt) > 60 else pos_prompt
-                    print(f"  {GREEN}✓{RESET} {Path(img_obj.path).name}: {DIM}{preview}{RESET}")
+                    print(f"  {Fore.GREEN}[OK]{Style.RESET_ALL} {Path(img_obj.path).name}: {preview}")
                 else:
                     no_meta_count += 1
-                    print(f"  {YELLOW}○{RESET} {Path(img_obj.path).name}: {DIM}(no metadata found){RESET}")
+                    print(f"  {Fore.YELLOW}[SKIP]{Style.RESET_ALL} {Path(img_obj.path).name}: (no metadata found)")
             except Exception as e:
                 error_count += 1
-                print(f"  {RED}✗{RESET} {Path(img_obj.path).name}: {DIM}{e}{RESET}")
+                print(f"  {Fore.RED}[ERR]{Style.RESET_ALL} {Path(img_obj.path).name}: {e}")
                 logging.error(f"Error extracting metadata from {img_obj.path}: {e}")
                 img_obj.error = f"Metadata error: {e}"
         
         print(f"")
-        print(f"{CYAN}Summary:{RESET} {GREEN}Found: {count}{RESET} | {YELLOW}No Metadata: {no_meta_count}{RESET} | {RED}Errors: {error_count}{RESET} | Saved: {saved_count}")
+        print(f"{Fore.CYAN}Summary:{Style.RESET_ALL} {Fore.GREEN}Found: {count}{Style.RESET_ALL} | {Fore.YELLOW}No Metadata: {no_meta_count}{Style.RESET_ALL} | {Fore.RED}Errors: {error_count}{Style.RESET_ALL} | Saved: {saved_count}")
         
         result = f"Processed {len(dataset)} images. Found metadata for {count}. Saved {saved_count} captions."
         return result
@@ -136,43 +179,100 @@ class MetadataTool(BaseTool):
         
         gr.Markdown(self.config.description)
         
-        with gr.Row():
-            meta_src = gr.Dropdown(
-                ["all", "png_info", "exif"], 
-                label="Source", 
-                value="all", 
-                info="Which metadata field to search."
-            )
-            meta_out_dir = gr.Textbox(
-                label="Output Directory", 
-                placeholder="Optional. Leave empty to save in same folder.", 
-                info="Path to save text files."
-            )
-            meta_ext = gr.Textbox(
-                label="Output Extension", 
-                value="txt", 
-                placeholder="txt", 
-                info="Extension for caption files."
-            )
-            meta_upd = gr.Checkbox(
-                label="Overwrite existing captions", 
-                value=True
-            )
-        
-        with gr.Row():
-            meta_clean = gr.Checkbox(label="Clean Text", value=True, info="Remove extra spaces")
-            meta_collapse = gr.Checkbox(label="Collapse Newlines", value=True, info="Merge paragraphs")
-            meta_norm = gr.Checkbox(label="Normalize Text", value=True, info="Fix punctuation")
+        with gr.Accordion("Extraction Settings", open=True):
+            with gr.Row():
+                meta_src = gr.Dropdown(
+                    ["all", "png_info", "exif"], 
+                    label="Source", 
+                    value="all", 
+                    info="Which metadata field to search."
+                )
+                meta_out_dir = gr.Textbox(
+                    label="Output Directory", 
+                    placeholder="Optional. Leave empty to save in same folder.", 
+                    info="Path to save text files."
+                )
+                meta_ext = gr.Textbox(
+                    label="Output Extension", 
+                    value="txt", 
+                    placeholder="txt", 
+                    info="Extension for caption files."
+                )
+                meta_upd = gr.Checkbox(
+                    label="Overwrite existing captions", 
+                    value=True
+                )
             
-        with gr.Row():
-            meta_pre = gr.Textbox(label="Prefix", placeholder="Added to start...", lines=1)
-            meta_suf = gr.Textbox(label="Suffix", placeholder="Added to end...", lines=1)
+            with gr.Row():
+                meta_clean = gr.Checkbox(label="Clean Text", value=True, info="Remove extra spaces")
+                meta_collapse = gr.Checkbox(label="Collapse Newlines", value=True, info="Merge paragraphs")
+                meta_norm = gr.Checkbox(label="Normalize Text", value=True, info="Fix punctuation")
+                
+            with gr.Row():
+                meta_pre = gr.Textbox(label="Prefix", placeholder="Added to start...", lines=1)
+                meta_suf = gr.Textbox(label="Suffix", placeholder="Added to end...", lines=1)
 
-        meta_run = gr.Button("Extract Metadata", variant="primary", elem_id="metadata_tool_btn")
+        with gr.Row():
+            save_btn = gr.Button("Save Settings", variant="secondary", scale=0)
+            meta_run = gr.Button("Extract Metadata", variant="primary", scale=1, elem_id="metadata_tool_btn")
+        
+        # Store for wire_events
+        self._save_btn = save_btn
         
         # Return components for later event wiring
         inputs = [meta_src, meta_upd, meta_pre, meta_suf, meta_clean, meta_collapse, meta_norm, meta_out_dir, meta_ext]
         return (meta_run, inputs)
+    
+    def wire_events(self, app, run_button, inputs: list, gallery_output, limit_count=None) -> None:
+        """Wire events with save settings support."""
+        from src.gui.constants import filter_user_overrides
+        
+        save_btn = self._save_btn
+        
+        def save_settings(*args):
+            settings = {
+                "source_type": args[0],
+                "update_caption": args[1],
+                "prefix": args[2],
+                "suffix": args[3],
+                "clean": args[4],
+                "collapse": args[5],
+                "normalize": args[6],
+                "output_dir": args[7],
+                "extension": args[8],
+            }
+            
+            try:
+                if "tool_settings" not in app.config_mgr.user_config:
+                    app.config_mgr.user_config["tool_settings"] = {}
+                if "metadata_extractor" not in app.config_mgr.user_config["tool_settings"]:
+                    app.config_mgr.user_config["tool_settings"]["metadata_extractor"] = {}
+                
+                defaults = self._get_defaults()
+                
+                for key, value in settings.items():
+                    default_val = defaults.get(key)
+                    if value != default_val:
+                        app.config_mgr.user_config["tool_settings"]["metadata_extractor"][key] = value
+                    elif key in app.config_mgr.user_config["tool_settings"]["metadata_extractor"]:
+                        del app.config_mgr.user_config["tool_settings"]["metadata_extractor"][key]
+                
+                if not app.config_mgr.user_config["tool_settings"]["metadata_extractor"]:
+                    del app.config_mgr.user_config["tool_settings"]["metadata_extractor"]
+                if not app.config_mgr.user_config.get("tool_settings"):
+                    if "tool_settings" in app.config_mgr.user_config:
+                        del app.config_mgr.user_config["tool_settings"]
+                
+                filtered = filter_user_overrides(app.config_mgr.user_config)
+                app.config_mgr._save_yaml(app.config_mgr.user_config_path, filtered)
+                gr.Info("Metadata Extractor settings saved!")
+            except Exception as e:
+                gr.Warning(f"Failed to save settings: {e}")
+        
+        save_btn.click(save_settings, inputs=inputs, outputs=[])
+        
+        # Call base class wire_events for run button
+        super().wire_events(app, run_button, inputs, gallery_output, limit_count)
     
     def _parse_png_parameters(self, metadata: Dict[str, Any]) -> Dict[str, Any]:
         """Parse PNG parameters string into structured data."""

@@ -264,7 +264,7 @@ def save_settings_simple(app, vram, system_ram, models_checked, gal_cols, gal_ro
         multi_updates.append(gr.update(visible=is_visible))
         
     if gal_rows == 0:
-        gr.Info("💡 Gallery hidden - refresh the page (F5) to apply")
+        gr.Info("Gallery hidden - refresh the page (F5) to apply")
     else:
         gr.Info("Settings saved successfully!")
         

@@ -180,7 +180,7 @@ def run_multi_model_inference(app, *inputs):
             total_captions += len(app.dataset.images)
         except Exception as e:
             gr.Warning(f"Model {model_id} failed: {str(e)}")
-            print(f"  {Fore.RED}✗ {model_id} failed: {e}{Style.RESET_ALL}")
+            print(f"  {Fore.RED}[ERR] {model_id} failed: {e}{Style.RESET_ALL}")
     
     elapsed_time = time.time() - start_time
     

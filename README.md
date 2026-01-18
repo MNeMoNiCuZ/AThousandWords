@@ -131,6 +131,14 @@ Extract and analyze image metadata:
 - Extract EXIF data and generation parameters
 - Batch export metadata to text files
 
+#### Augment
+Augment small datasets with randomized variations:
+- Crop jitter, rotation, and flip transformations
+- Color adjustments (brightness, contrast, saturation, hue)
+- Blur, sharpen, and noise effects
+- Size constraints and forced output dimensions
+- Caption file copying for augmented images
+
 ### Settings Tab
 
 Configure global application defaults:

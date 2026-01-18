@@ -37,6 +37,58 @@ class BucketingTool(BaseTool):
             icon=""
         )
     
+    def _get_defaults(self) -> dict:
+        """Return default values for all settings."""
+        return {
+            "num_buckets": 3,
+            "tolerance": 20,
+            "max_per_bucket": 50,
+            "manual_buckets": "",
+            "create_landscape": True,
+            "create_portrait": True,
+            "create_square": True,
+            "min_resolution": 512,
+            "max_resolution": 2048,
+            "unassigned_action": "Include in _unassigned",
+            "file_action": "Copy",
+            "output_dir": "",
+        }
+    
+    def get_loaded_values(self, app) -> list:
+        """Load saved settings from user config."""
+        import gradio as gr
+        
+        defaults = self._get_defaults()
+        saved = {}
+        
+        try:
+            tool_settings = app.config_mgr.user_config.get("tool_settings", {})
+            saved = tool_settings.get("bucketing", {})
+        except Exception:
+            pass
+        
+        values = {**defaults, **saved}
+        
+        # Order must match create_gui inputs list (16 items including result_output and buttons)
+        return [
+            gr.update(value=values["num_buckets"]),
+            gr.update(value=values["tolerance"]),
+            gr.update(value=values["max_per_bucket"]),
+            gr.update(value=values["manual_buckets"]),
+            gr.update(value=values["create_landscape"]),
+            gr.update(value=values["create_portrait"]),
+            gr.update(value=values["create_square"]),
+            gr.update(value=values["min_resolution"]),
+            gr.update(value=values["max_resolution"]),
+            gr.update(value=values["unassigned_action"]),
+            gr.update(value=values["file_action"]),
+            gr.update(value=values["output_dir"]),
+            gr.update(),  # result_output - no change
+            gr.update(),  # analyze_btn - no change
+            gr.update(),  # prune_btn - no change
+            gr.update(),  # organize_btn - no change
+        ]
+    
     def apply_to_dataset(self, dataset, num_buckets: int = 3,
                          tolerance: float = 20.0,
                          max_per_bucket: int = 50,
@@ -163,9 +215,10 @@ class BucketingTool(BaseTool):
         }
         
         for img in image_data:
-            if img["max_dim"] < min_res:
+            # Only apply resolution checks if the limit is > 0 (0 = disabled)
+            if min_res and min_res > 0 and img["max_dim"] < min_res:
                 result["resolution_low"].append(img)
-            elif img["max_dim"] > max_res:
+            elif max_res and max_res > 0 and img["max_dim"] > max_res:
                 result["resolution_high"].append(img)
             
             result["ratio_summary"][img["ratio_str"]]["images"].append(img)
@@ -618,71 +671,76 @@ class BucketingTool(BaseTool):
     def create_gui(self, app) -> tuple:
         gr.Markdown(self.config.description)
         
-        gr.Markdown("**Bucket Settings**")
-        with gr.Row():
-            num_buckets = gr.Number(
-                value=3, precision=0, minimum=1, label="Number of Buckets",
-                info="How many ratio groups to create (auto mode)"
-            )
-            tolerance = gr.Number(
-                value=20, precision=0, minimum=1, label="Tolerance (%)",
-                info="Maximum ratio difference to accept into a bucket"
-            )
-            max_per_bucket = gr.Number(
-                value=50, precision=0, minimum=0, label="Max per Bucket",
-                info="Limit images per bucket, 0 means no limit"
-            )
-            manual_buckets = gr.Textbox(
-                label="Manual Buckets (Optional)",
-                placeholder="e.g., 3:2, 2:3, 1:1",
-                info="Comma-separated ratios. Leave empty for auto"
-            )
+        with gr.Accordion("Bucketing Settings", open=True):
+            gr.Markdown("**Bucket Settings**")
+            with gr.Row():
+                num_buckets = gr.Number(
+                    value=3, precision=0, minimum=1, label="Number of Buckets",
+                    info="How many ratio groups to create (auto mode)"
+                )
+                tolerance = gr.Number(
+                    value=20, precision=0, minimum=1, label="Tolerance (%)",
+                    info="Maximum ratio difference to accept into a bucket"
+                )
+                max_per_bucket = gr.Number(
+                    value=50, precision=0, minimum=0, label="Max per Bucket",
+                    info="Limit images per bucket, 0 means no limit"
+                )
+                manual_buckets = gr.Textbox(
+                    label="Manual Buckets (Optional)",
+                    placeholder="e.g., 3:2, 2:3, 1:1",
+                    info="Comma-separated ratios. Leave empty for auto"
+                )
+            
+            gr.Markdown("**Buckets to Create**")
+            with gr.Row():
+                create_landscape = gr.Checkbox(
+                    label="Landscape", value=True,
+                    info="Create buckets from landscape images"
+                )
+                create_portrait = gr.Checkbox(
+                    label="Portrait", value=True,
+                    info="Create buckets from portrait images"
+                )
+                create_square = gr.Checkbox(
+                    label="Square", value=True,
+                    info="Create buckets from square images"
+                )
+                min_res = gr.Number(
+                    value=512, precision=0, label="Min Resolution",
+                    info="Flag images below this"
+                )
+                max_res = gr.Number(
+                    value=2048, precision=0, label="Max Resolution",
+                    info="Flag images above this"
+                )
+            
+            gr.Markdown("**Output**")
+            with gr.Row():
+                output_dir = gr.Textbox(
+                    label="Directory", placeholder="Required for Organize",
+                    info="Destination folder for organized files"
+                )
+                file_action = gr.Dropdown(
+                    choices=["Copy", "Move"], value="Copy", label="Action",
+                    info="Copy preserves originals, Move deletes source"
+                )
+                unassigned_action = gr.Dropdown(
+                    choices=["Include in _unassigned", "Include in _issues", "Skip"],
+                    value="Include in _unassigned", label="Unassigned",
+                    info="What to do with images that didn't fit"
+                )
         
-        gr.Markdown("**Buckets to Create**")
         with gr.Row():
-            create_landscape = gr.Checkbox(
-                label="Landscape", value=True,
-                info="Create buckets from landscape images"
-            )
-            create_portrait = gr.Checkbox(
-                label="Portrait", value=True,
-                info="Create buckets from portrait images"
-            )
-            create_square = gr.Checkbox(
-                label="Square", value=True,
-                info="Create buckets from square images"
-            )
-            min_res = gr.Number(
-                value=512, precision=0, label="Min Resolution",
-                info="Flag images below this"
-            )
-            max_res = gr.Number(
-                value=2048, precision=0, label="Max Resolution",
-                info="Flag images above this"
-            )
-        
-        gr.Markdown("**Output**")
-        with gr.Row():
-            output_dir = gr.Textbox(
-                label="Directory", placeholder="Required for Organize",
-                info="Destination folder for organized files"
-            )
-            file_action = gr.Dropdown(
-                choices=["Copy", "Move"], value="Copy", label="Action",
-                info="Copy preserves originals, Move deletes source"
-            )
-            unassigned_action = gr.Dropdown(
-                choices=["Include in _unassigned", "Include in _issues", "Skip"],
-                value="Include in _unassigned", label="Unassigned",
-                info="What to do with images that didn't fit"
-            )
-        
-        with gr.Row():
+            save_btn = gr.Button("Save Settings", variant="secondary", scale=0)
             analyze_btn = gr.Button("Analyze", variant="secondary", elem_id="bucket_analyze_btn")
             prune_btn = gr.Button("Prune to Balanced", variant="secondary", elem_id="bucket_prune_btn")
             organize_btn = gr.Button("Organize", variant="primary", elem_id="bucket_organize_btn")
         
         result_output = gr.HTML(value=self._empty_state())
+        
+        # Store for wire_events
+        self._save_btn = save_btn
         
         inputs = [num_buckets, tolerance, max_per_bucket, manual_buckets, create_landscape, create_portrait, create_square,
                   min_res, max_res, unassigned_action, file_action, output_dir, result_output, analyze_btn, prune_btn, organize_btn]
@@ -692,12 +750,16 @@ class BucketingTool(BaseTool):
                     limit_count=None) -> None:
         import copy
         
-        # ANSI color codes
-        CYAN = "\033[96m"
-        GREEN = "\033[92m"
-        YELLOW = "\033[93m"
-        RESET = "\033[0m"
-        BOLD = "\033[1m"
+        # Use colorama for consistent console colors
+        try:
+            from colorama import Fore, Style
+            CYAN = Fore.CYAN
+            GREEN = Fore.GREEN
+            YELLOW = Fore.YELLOW
+            RED = Fore.RED
+            RESET = Style.RESET_ALL
+        except ImportError:
+            CYAN = GREEN = YELLOW = RED = RESET = ""
         
         num_buckets, tolerance, max_per_bucket, manual_buckets = inputs[0], inputs[1], inputs[2], inputs[3]
         create_l, create_p, create_s = inputs[4], inputs[5], inputs[6]
@@ -755,7 +817,7 @@ class BucketingTool(BaseTool):
                 return self._empty_state()
             
             print(f"")
-            print(f"{BOLD}{CYAN}--- Running Bucketing Tool (Analyze) on {count} images ---{RESET}")
+            print(f"{CYAN}--- Running Bucketing Tool (Analyze) on {count} images ---{RESET}")
             print(f"{CYAN}Settings:{RESET}")
             print(f"  Buckets: {args[0]} | Tolerance: {args[1]}% | Max per Bucket: {args[2] or 'unlimited'}")
             print(f"  Min Res: {args[7]}px | Max Res: {args[8]}px")
@@ -772,8 +834,8 @@ class BucketingTool(BaseTool):
                 create_landscape=args[4],
                 create_portrait=args[5],
                 create_square=args[6],
-                min_resolution=int(args[7]) if args[7] else 512,
-                max_resolution=int(args[8]) if args[8] else 2048,
+                min_resolution=int(args[7]) if args[7] else 0,
+                max_resolution=int(args[8]) if args[8] else 0,
                 unassigned_action=args[9],
                 file_action=args[10],
                 output_dir=args[11],
@@ -781,7 +843,7 @@ class BucketingTool(BaseTool):
             )
             
             _print_summary(result)
-            print(f"{BOLD}{CYAN}--- Bucketing Tool (Analyze) Complete ---{RESET}")
+            print(f"{CYAN}--- Bucketing Tool (Analyze) Complete ---{RESET}")
             print(f"")
             return result
         
@@ -793,7 +855,7 @@ class BucketingTool(BaseTool):
                 return self._empty_state()
             
             print(f"")
-            print(f"{BOLD}{CYAN}--- Running Bucketing Tool (Prune) on {count} images ---{RESET}")
+            print(f"{CYAN}--- Running Bucketing Tool (Prune) on {count} images ---{RESET}")
             
             result = self.apply_to_dataset(
                 run_dataset,
@@ -804,8 +866,8 @@ class BucketingTool(BaseTool):
                 create_landscape=args[4],
                 create_portrait=args[5],
                 create_square=args[6],
-                min_resolution=int(args[7]) if args[7] else 512,
-                max_resolution=int(args[8]) if args[8] else 2048,
+                min_resolution=int(args[7]) if args[7] else 0,
+                max_resolution=int(args[8]) if args[8] else 0,
                 unassigned_action=args[9],
                 file_action=args[10],
                 output_dir=args[11],
@@ -813,7 +875,7 @@ class BucketingTool(BaseTool):
             )
             
             _print_summary(result)
-            print(f"{BOLD}{CYAN}--- Bucketing Tool (Prune) Complete ---{RESET}")
+            print(f"{CYAN}--- Bucketing Tool (Prune) Complete ---{RESET}")
             print(f"")
             return result
         
@@ -825,7 +887,7 @@ class BucketingTool(BaseTool):
                 return self._empty_state()
             
             print(f"")
-            print(f"{BOLD}{CYAN}--- Running Bucketing Tool (Organize) on {count} images ---{RESET}")
+            print(f"{CYAN}--- Running Bucketing Tool (Organize) on {count} images ---{RESET}")
             print(f"  Output: {args[11]}")
             print(f"  Action: {args[10]}")
             print(f"")
@@ -839,8 +901,8 @@ class BucketingTool(BaseTool):
                 create_landscape=args[4],
                 create_portrait=args[5],
                 create_square=args[6],
-                min_resolution=int(args[7]) if args[7] else 512,
-                max_resolution=int(args[8]) if args[8] else 2048,
+                min_resolution=int(args[7]) if args[7] else 0,
+                max_resolution=int(args[8]) if args[8] else 0,
                 unassigned_action=args[9],
                 file_action=args[10],
                 output_dir=args[11],
@@ -848,13 +910,63 @@ class BucketingTool(BaseTool):
             )
             
             _print_summary(result)
-            print(f"{BOLD}{CYAN}--- Bucketing Tool (Organize) Complete ---{RESET}")
+            print(f"{CYAN}--- Bucketing Tool (Organize) Complete ---{RESET}")
             print(f"")
             return result
         
         analyze_btn.click(fn=analyze, inputs=all_inputs, outputs=[result_output])
         prune_btn.click(fn=prune, inputs=all_inputs, outputs=[result_output])
         organize_btn.click(fn=organize, inputs=all_inputs, outputs=[result_output])
+        
+        # Save settings handler
+        def save_settings(*args):
+            from src.gui.constants import filter_user_overrides
+            
+            settings = {
+                "num_buckets": args[0],
+                "tolerance": args[1],
+                "max_per_bucket": args[2],
+                "manual_buckets": args[3],
+                "create_landscape": args[4],
+                "create_portrait": args[5],
+                "create_square": args[6],
+                "min_resolution": args[7],
+                "max_resolution": args[8],
+                "unassigned_action": args[9],
+                "file_action": args[10],
+                "output_dir": args[11],
+            }
+            
+            try:
+                if "tool_settings" not in app.config_mgr.user_config:
+                    app.config_mgr.user_config["tool_settings"] = {}
+                if "bucketing" not in app.config_mgr.user_config["tool_settings"]:
+                    app.config_mgr.user_config["tool_settings"]["bucketing"] = {}
+                
+                defaults = self._get_defaults()
+                
+                for key, value in settings.items():
+                    default_val = defaults.get(key)
+                    if value != default_val:
+                        app.config_mgr.user_config["tool_settings"]["bucketing"][key] = value
+                    elif key in app.config_mgr.user_config["tool_settings"]["bucketing"]:
+                        del app.config_mgr.user_config["tool_settings"]["bucketing"][key]
+                
+                if not app.config_mgr.user_config["tool_settings"]["bucketing"]:
+                    del app.config_mgr.user_config["tool_settings"]["bucketing"]
+                if not app.config_mgr.user_config.get("tool_settings"):
+                    if "tool_settings" in app.config_mgr.user_config:
+                        del app.config_mgr.user_config["tool_settings"]
+                
+                filtered = filter_user_overrides(app.config_mgr.user_config)
+                app.config_mgr._save_yaml(app.config_mgr.user_config_path, filtered)
+                gr.Info("Bucketing settings saved!")
+            except Exception as e:
+                gr.Warning(f"Failed to save settings: {e}")
+        
+        save_btn = self._save_btn
+        settings_inputs = [num_buckets, tolerance, max_per_bucket, manual_buckets, create_l, create_p, create_s, min_res, max_res, unassigned_action, file_action, output_dir]
+        save_btn.click(save_settings, inputs=settings_inputs, outputs=[])
         
         for c in [num_buckets, tolerance, max_per_bucket, manual_buckets, create_l, create_p, create_s, min_res, max_res]:
             c.change(fn=analyze, inputs=all_inputs, outputs=[result_output])

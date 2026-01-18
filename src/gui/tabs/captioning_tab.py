@@ -10,7 +10,7 @@ def create_general_settings_accordion(app):
     cfg = app.config_mgr.get_global_settings()
     components = {}
     
-    with gr.Accordion("⚙️ General Settings", open=False):
+    with gr.Accordion("General Settings", open=False):
         with gr.Row():
             out_dir = gr.Textbox(label="Output Folder", value=cfg['output_dir'], placeholder="Leave empty for same folder as input", info="Directory for captions. Leave empty to save alongside input images.")
             out_fmt = gr.Textbox(label="Output Format", value=cfg['output_format'], info="File extension (e.g., txt, json, caption)")
@@ -81,7 +81,7 @@ def create_model_settings_accordion(app, get_model_description_html_fn):
     
     components = {}
     
-    with gr.Accordion("🤖 Model Settings", open=True):
+    with gr.Accordion("Model Settings", open=True):
         initial_description_html = get_model_description_html_fn(app, app.current_model_id)
         model_description = gr.Markdown(value=initial_description_html, elem_classes="model-description")
         

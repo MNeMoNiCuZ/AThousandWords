@@ -20,7 +20,7 @@ def create_dataset_gallery(app, gallery_id_suffix="", show_headers=True):
     """
     with gr.Column(elem_classes="input-section"):
         if show_headers:
-            gr.Markdown("### 📂 Input Source")
+            gr.Markdown("### Input Source")
         with gr.Row():
             input_files = gr.File(
                 label="Drop Images or Folders",
@@ -43,7 +43,7 @@ def create_dataset_gallery(app, gallery_id_suffix="", show_headers=True):
                 )
         
         if show_headers:
-            gr.Markdown("### 🖼️ Dataset Gallery")
+            gr.Markdown("### Dataset Gallery")
         gallery = gr.Gallery(
             label=None,
             columns=app.gallery_columns,

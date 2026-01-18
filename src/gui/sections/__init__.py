@@ -13,7 +13,7 @@ def create_input_source(app):
     Returns:
         dict: Component references
     """
-    with gr.Accordion("📂 Input Source", open=True):
+    with gr.Accordion("Input Source", open=True):
         with gr.Row():
             with gr.Column(scale=1):
                 input_files = gr.File(

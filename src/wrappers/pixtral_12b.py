@@ -230,7 +230,7 @@ class Pixtral12BWrapper(BaseCaptionModel):
                 from src.core.console_kit import console, Fore
                 console.print("\n⚠️  BATCH OOM ERROR (Non-fatal - continuing with next batch)", color=Fore.LIGHTRED_EX, force=True)
                 console.print(f"   {str(e)}", color=Fore.LIGHTRED_EX, force=True)
-                console.print("   💡 Try reducing batch size to avoid this error\n", color=Fore.YELLOW, force=True)
+                console.print("   Try reducing batch size to avoid this error\n", color=Fore.YELLOW, force=True)
             else:
                 print(f"Error during Pixtral batched inference: {e}")
             

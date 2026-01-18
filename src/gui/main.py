@@ -459,6 +459,22 @@ def create_ui(startup_message=None):
                 limit_count  # Pass limit from Input Source
             )
         
+        # Load tool settings on page refresh
+        for tool_name, components in tool_components.items():
+            tool = components["tool"]
+            inputs = components["inputs"]
+            
+            # Only tools with get_loaded_values method support settings loading
+            if hasattr(tool, 'get_loaded_values'):
+                def make_load_fn(t):
+                    return lambda: t.get_loaded_values(app)
+                
+                demo.load(
+                    make_load_fn(tool),
+                    inputs=None,
+                    outputs=inputs
+                )
+        
         # Wire Preset Events
         wire_presets_events(app, preset_components, model_sel, models_chk)
 

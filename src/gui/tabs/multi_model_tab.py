@@ -13,10 +13,10 @@ def create_multi_model_tab(app):
     Returns:
         dict: Component references for event wiring
     """
-    gr.Markdown("### 🤖 Multi-Model Processing")
+    gr.Markdown("### Multi-Model Processing")
     gr.Markdown("Run multiple models in sequence on the same dataset.")
     
-    with gr.Accordion("🤖 Model Selection", open=True):
+    with gr.Accordion("Model Selection", open=True):
         with gr.Row():
             select_all_btn = gr.Button("Select All", variant="secondary", scale=0)
             deselect_all_btn = gr.Button("Deselect All", variant="secondary", scale=0)

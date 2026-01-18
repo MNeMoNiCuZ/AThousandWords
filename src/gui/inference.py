@@ -198,3 +198,71 @@ def run_with_dynamic_state(app, build_args_fn, *args):
 
     return gallery_data, gr.update(value="Run Captioning", interactive=True), dl_grp, dl_btn
 
+
+# ============================================================================
+# REUSABLE TOOL BUTTON STATE FUNCTIONS
+# Use these in tools for consistent button behavior across the app.
+# ============================================================================
+
+def tool_start_processing(button_text: str = "Run Tool"):
+    """
+    Return UI updates for when a tool starts processing.
+    
+    Returns tuple for: (run_button, download_btn_group, download_btn)
+    - Run button shows "Processing..." and is disabled
+    - Download button wrapper is visible but button shows processing state
+    
+    Usage in wire_events:
+        run_button.click(
+            lambda: tool_start_processing("Augment Dataset"),
+            inputs=[],
+            outputs=[run_button, download_btn_group, download_btn]
+        ).then(...)
+    """
+    return (
+        gr.update(value="Processing...", interactive=False),
+        gr.update(visible=True),
+        gr.update(
+            value=None,
+            variant="secondary",
+            interactive=False,
+            elem_classes="processing-btn"
+        )
+    )
+
+
+def tool_finish_processing(button_text: str, generated_files: list = None):
+    """
+    Return UI updates for when a tool finishes processing.
+    
+    Args:
+        button_text: Text to restore on the run button (e.g., "Augment Dataset")
+        generated_files: List of file paths. If provided and non-empty, creates zip and shows download.
+        
+    Returns tuple for: (run_button, download_btn_group, download_btn)
+    """
+    from src.gui import file_loader
+    
+    # Default: hide download
+    dl_grp = gr.update(visible=False)
+    dl_btn = gr.update(visible=False)
+    
+    # If files were generated, create zip and show download button
+    if generated_files:
+        zip_path = file_loader.create_zip(generated_files)
+        if zip_path:
+            dl_grp = gr.update(visible=True)
+            dl_btn = gr.update(
+                value=zip_path,
+                visible=True,
+                interactive=True,
+                variant="primary",
+                icon=str(Path(__file__).parent.parent / "core" / "download_white.svg"),
+                elem_classes="download-btn"
+            )
+    
+    return (
+        gr.update(value=button_text, interactive=True),
+        dl_grp,
+        dl_btn
+    )

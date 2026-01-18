@@ -252,7 +252,7 @@ def create_model_info_tab(config_mgr):
     Args:
         config_mgr: ConfigManager instance with loaded model configs
     """
-    gr.Markdown("### 📊 Model Information")
+    gr.Markdown("### Model Information")
     
     with gr.Accordion(label="", open=True):
         grid_md = build_unified_model_table_markdown(config_mgr)

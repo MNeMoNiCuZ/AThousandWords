@@ -12,6 +12,15 @@ from pathlib import Path
 
 from .base import BaseTool, ToolConfig
 
+# Colorama for console colors
+try:
+    from colorama import Fore, Style
+except ImportError:
+    class Fore:
+        CYAN = YELLOW = GREEN = RED = ''
+    class Style:
+        RESET_ALL = DIM = ''
+
 
 class ResizeTool(BaseTool):
     """Tool for batch resizing images."""
@@ -31,6 +40,42 @@ Images smaller than the target are NOT upscaled.
             icon=""
         )
     
+    def _get_defaults(self) -> dict:
+        """Return default values for all settings."""
+        return {
+            "max_dim": 1024,
+            "output_dir": "",
+            "prefix": "",
+            "suffix": "",
+            "extension": "",
+            "overwrite": True,
+        }
+    
+    def get_loaded_values(self, app) -> list:
+        """Load saved settings from user config."""
+        import gradio as gr
+        
+        defaults = self._get_defaults()
+        saved = {}
+        
+        try:
+            tool_settings = app.config_mgr.user_config.get("tool_settings", {})
+            saved = tool_settings.get("resize", {})
+        except Exception:
+            pass
+        
+        values = {**defaults, **saved}
+        
+        # Order must match create_gui inputs list
+        return [
+            gr.update(value=values["max_dim"]),
+            gr.update(value=values["output_dir"]),
+            gr.update(value=values["prefix"]),
+            gr.update(value=values["suffix"]),
+            gr.update(value=values["extension"]),
+            gr.update(value=values["overwrite"]),
+        ]
+    
     def apply_to_dataset(self, dataset, max_dim: int, output_dir: str = None,
                          prefix: str = "", suffix: str = "", extension: str = "",
                          overwrite: bool = True) -> str:
@@ -49,20 +94,12 @@ Images smaller than the target are NOT upscaled.
         Returns:
             str: Status message
         """
-        # ANSI colors
-        CYAN = "\033[96m"
-        GREEN = "\033[92m"
-        YELLOW = "\033[93m"
-        RED = "\033[91m"
-        RESET = "\033[0m"
-        DIM = "\033[2m"
-        
         count = 0
         skipped = 0
         errors = 0
         
         # Log settings
-        print(f"{CYAN}Settings:{RESET}")
+        print(f"{Fore.CYAN}Settings:{Style.RESET_ALL}")
         print(f"  Max Dimension: {max_dim}px")
         print(f"  Output Dir: {output_dir or '(same as source)'}")
         print(f"  Prefix: '{prefix}' | Suffix: '{suffix}' | Extension: {extension or '(keep original)'}")
@@ -93,19 +130,19 @@ Images smaller than the target are NOT upscaled.
             
             if success:
                 count += 1
-                print(f"  {GREEN}✓{RESET} {src_path.name} → {new_name} {DIM}({msg}){RESET}")
+                print(f"  {Fore.GREEN}[OK]{Style.RESET_ALL} {src_path.name} -> {new_name} ({msg})")
                 logging.info(f"Resized: {src_path.name} -> {new_name} ({msg})")
             elif "Skipped" in msg:
                 skipped += 1
-                print(f"  {YELLOW}○{RESET} {src_path.name} {DIM}({msg}){RESET}")
+                print(f"  {Fore.YELLOW}[SKIP]{Style.RESET_ALL} {src_path.name} ({msg})")
                 logging.debug(f"Skipped: {src_path.name} ({msg})")
             else:
                 errors += 1
-                print(f"  {RED}✗{RESET} {src_path.name} {DIM}({msg}){RESET}")
+                print(f"  {Fore.RED}[ERR]{Style.RESET_ALL} {src_path.name} ({msg})")
                 logging.error(f"Error: {src_path.name} ({msg})")
         
         print(f"")
-        print(f"{CYAN}Summary:{RESET} {GREEN}Resized: {count}{RESET} | {YELLOW}Skipped: {skipped}{RESET} | {RED}Errors: {errors}{RESET}")
+        print(f"{Fore.CYAN}Summary:{Style.RESET_ALL} {Fore.GREEN}Resized: {count}{Style.RESET_ALL} | {Fore.YELLOW}Skipped: {skipped}{Style.RESET_ALL} | {Fore.RED}Errors: {errors}{Style.RESET_ALL}")
                 
         result = f"Processed {len(dataset)} images. Resized/Saved: {count}, Skipped: {skipped}, Errors: {errors}"
         return result
@@ -115,38 +152,92 @@ Images smaller than the target are NOT upscaled.
         
         gr.Markdown(self.config.description)
         
+        with gr.Accordion("Resize Settings", open=True):
+            with gr.Row():
+                resize_out_dir = gr.Textbox(
+                    label="Output Directory", 
+                    placeholder="Optional. Leave empty to save in same folder.", 
+                    info="Path to save resized images."
+                )
+                resize_pre = gr.Textbox(
+                    label="Output Filename Prefix", 
+                    placeholder="Added to start...", 
+                    lines=1
+                )
+                resize_suf = gr.Textbox(
+                    label="Output Filename Suffix", 
+                    placeholder="Added to end...", 
+                    lines=1
+                )
+                resize_ext = gr.Textbox(
+                    label="Output Extension", 
+                    value="", 
+                    placeholder="Keep Original", 
+                    info="Ext (jpg, png). Empty = Keep Original."
+                )
+                
+            with gr.Row():
+                resize_px = gr.Number(label="Max Dimension (px)", value=1024, precision=0, info="Maximum width or height")
+                resize_overwrite = gr.Checkbox(label="Overwrite", value=True, info="Overwrite if file exists")
+        
         with gr.Row():
-            resize_out_dir = gr.Textbox(
-                label="Output Directory", 
-                placeholder="Optional. Leave empty to save in same folder.", 
-                info="Path to save resized images."
-            )
-            resize_pre = gr.Textbox(
-                label="Output Filename Prefix", 
-                placeholder="Added to start...", 
-                lines=1
-            )
-            resize_suf = gr.Textbox(
-                label="Output Filename Suffix", 
-                placeholder="Added to end...", 
-                lines=1
-            )
-            resize_ext = gr.Textbox(
-                label="Output Extension", 
-                value="", 
-                placeholder="Keep Original", 
-                info="Ext (jpg, png). Empty = Keep Original."
-            )
-            
-        with gr.Row():
-            resize_px = gr.Number(label="Max Dimension (px)", value=1024, precision=0)
-            resize_overwrite = gr.Checkbox(label="Overwrite", value=True, info="Overwrite if file exists")
-            
-        resize_run = gr.Button("Resize Images", variant="primary", elem_id="resize_tool_btn")
+            save_btn = gr.Button("Save Settings", variant="secondary", scale=0)
+            resize_run = gr.Button("Resize Images", variant="primary", scale=1, elem_id="resize_tool_btn")
+        
+        # Store for wire_events
+        self._save_btn = save_btn
         
         # Return components for later event wiring
         inputs = [resize_px, resize_out_dir, resize_pre, resize_suf, resize_ext, resize_overwrite]
         return (resize_run, inputs)
+    
+    def wire_events(self, app, run_button, inputs: list, gallery_output, limit_count=None) -> None:
+        """Wire events with save settings support."""
+        from src.gui.constants import filter_user_overrides
+        
+        save_btn = self._save_btn
+        
+        def save_settings(*args):
+            settings = {
+                "max_dim": args[0],
+                "output_dir": args[1],
+                "prefix": args[2],
+                "suffix": args[3],
+                "extension": args[4],
+                "overwrite": args[5],
+            }
+            
+            try:
+                if "tool_settings" not in app.config_mgr.user_config:
+                    app.config_mgr.user_config["tool_settings"] = {}
+                if "resize" not in app.config_mgr.user_config["tool_settings"]:
+                    app.config_mgr.user_config["tool_settings"]["resize"] = {}
+                
+                defaults = self._get_defaults()
+                
+                for key, value in settings.items():
+                    default_val = defaults.get(key)
+                    if value != default_val:
+                        app.config_mgr.user_config["tool_settings"]["resize"][key] = value
+                    elif key in app.config_mgr.user_config["tool_settings"]["resize"]:
+                        del app.config_mgr.user_config["tool_settings"]["resize"][key]
+                
+                if not app.config_mgr.user_config["tool_settings"]["resize"]:
+                    del app.config_mgr.user_config["tool_settings"]["resize"]
+                if not app.config_mgr.user_config.get("tool_settings"):
+                    if "tool_settings" in app.config_mgr.user_config:
+                        del app.config_mgr.user_config["tool_settings"]
+                
+                filtered = filter_user_overrides(app.config_mgr.user_config)
+                app.config_mgr._save_yaml(app.config_mgr.user_config_path, filtered)
+                gr.Info("Resize settings saved!")
+            except Exception as e:
+                gr.Warning(f"Failed to save settings: {e}")
+        
+        save_btn.click(save_settings, inputs=inputs, outputs=[])
+        
+        # Call base class wire_events for run button
+        super().wire_events(app, run_button, inputs, gallery_output, limit_count)
     
     def _resize_image_file(self, image_path: str, max_dimension: int, output_path: str = None, 
                            overwrite: bool = True) -> tuple:

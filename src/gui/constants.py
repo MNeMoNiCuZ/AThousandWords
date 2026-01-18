@@ -47,7 +47,7 @@ def filter_user_overrides(config: dict) -> dict:
     
     for key, value in config.items():
         # Always keep these special keys
-        if key in ('disabled_models', 'last_model', 'multi_model', 'model_settings'):
+        if key in ('disabled_models', 'last_model', 'multi_model', 'model_settings', 'tool_settings', 'model_order'):
             overrides[key] = value
             continue
         # Skip keys starting with 'last_' (model-specific session data)
