@@ -122,6 +122,8 @@ Augment small datasets with randomized variations:
 - Size constraints and forced output dimensions
 - Caption file copying for augmented images
 
+Credit: [a-l-e-x-d-s-9/stable_diffusion_tools](https://github.com/a-l-e-x-d-s-9/stable_diffusion_tools)
+
 #### Bucketing
 Analyze and organize images by aspect ratio for training optimization:
 
