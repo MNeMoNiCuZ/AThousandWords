@@ -72,41 +72,42 @@ A powerful, customizable, and user-friendly batch captioning tool for VLM (Visio
 
 ## Features Overview
 
-### Captioning Tab
+## Captioning
 
 The main workspace for image and video captioning:
 
-- **Model Selection**: Choose from 20+ models with real-time model information display (VRAM requirements, speed, capabilities, license)
+- **Model Selection**: Choose from 20+ models with good presets, information about VRAM requirements, speed, capabilities, license
 - **Prompt Configuration**: Use preset prompt templates or create custom prompts with support for system prompts
+- **Custom Per-Image Prompts**: Use text-files or image metadata as input prompts, or combine them with a prompt prefix/suffix for per image captioning instructions
 - **Generation Parameters**: Fine-tune temperature, top_k, max tokens, and repetition penalty for optimal output quality
-- **Dataset Management**: Load folders with recursive search, filter by file extension, apply processing limits
-- **Live Preview**: Interactive gallery with caption preview and real-time editing
-- **Output Customization**: Configure prefixes/suffixes, output format (txt/json/caption), and overwrite behavior
+- **Dataset Management**: Load folders from your local drive if run locally, or drag/drop images into the dataset area
+- **Processing Limits**: Limit the number of images to caption for quick tests or samples
+- **Live Preview**: Interactive gallery with caption preview and manual caption editing
+- **Output Customization**: Configure prefixes/suffixes, output formats, and overwrite behavior
 - **Text Post-Processing**: Automatic text cleanup, newline collapsing, normalization, and loop detection removal
 - **Image Preprocessing**: Resize images before inference with configurable max width/height
-- **CLI Command Generation**: Generate equivalent CLI commands for reproducible batch processing
+- **CLI Command Generation**: Generate equivalent CLI commands for easy batch processing
 
-### Multi-Model Captioning
+## Multi-Model Captioning
 
 Run multiple models on the same dataset for comparison or ensemble captioning:
 
-- **Sequential Processing**: Run 2+ models one after another on the same input folder
-- **Per-Model Configuration**: Each model can have its own settings (prompts, generation parameters, output format)
-- **Save/Load Configurations**: Store multi-model setups for reuse
-- **Progress Tracking**: Real-time progress for each model in the queue
+- **Sequential Processing**: Run multiple models one after another on the same input folder
+- **Per-Model Configuration**: Each model uses its settings from the captioning page
 
 ### Tools Tab
 
-Dataset utilities accessible from the GUI:
+Run various scripts and tools to manipulate and manage your files:
 
-#### Resize Tool
-Batch resize images with flexible options:
-- Configurable maximum dimensions (width/height)
-- Multiple resampling methods (Lanczos, Bilinear, etc.)
-- Output directory selection with prefix/suffix naming
-- Overwrite protection with optional bypass
+#### Augment
+Augment small datasets with randomized variations:
+- Crop jitter, rotation, and flip transformations
+- Color adjustments (brightness, contrast, saturation, hue)
+- Blur, sharpen, and noise effects
+- Size constraints and forced output dimensions
+- Caption file copying for augmented images
 
-#### Bucketing Tool
+#### Bucketing
 Analyze and organize images by aspect ratio for training optimization:
 - Automatic aspect ratio bucket detection
 - Visual distribution of images across buckets
@@ -119,15 +120,22 @@ Extract and analyze image metadata:
 - Extract EXIF data and generation parameters
 - Batch export metadata to text files
 
-#### Augment
-Augment small datasets with randomized variations:
-- Crop jitter, rotation, and flip transformations
-- Color adjustments (brightness, contrast, saturation, hue)
-- Blur, sharpen, and noise effects
-- Size constraints and forced output dimensions
-- Caption file copying for augmented images
+#### Resize Tool
+Batch resize images with flexible options:
+- Configurable maximum dimensions (width/height)
+- Multiple resampling methods (Lanczos, Bilinear, etc.)
+- Output directory selection with prefix/suffix naming
+- Overwrite protection with optional bypass
 
-### Settings Tab
+## Presets
+
+Manage prompt templates for quick access:
+
+- **Create Presets**: Save frequently used prompts as named presets
+- **Model Association**: Link presets to specific models
+- **Import/Export**: Share preset configurations
+
+## Settings
 
 Configure global application defaults:
 
@@ -137,17 +145,37 @@ Configure global application defaults:
 - **Hardware Configuration**: GPU VRAM allocation, default batch sizes
 - **Reset to Defaults**: Restore all settings to factory defaults with confirmation
 
-### Presets Tab
 
-Manage prompt templates for quick access:
+### Model Information
 
-- **Create Presets**: Save frequently used prompts as named presets
-- **Model Association**: Link presets to specific models
-- **Import/Export**: Share preset configurations
+A detailed list of model properties and requirements to get an overview of what features the different models support.
+
+| Model | Min VRAM | Speed | Tags | Natural Language | Custom Prompts | Versions | Video | License |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| **WD14 Tagger** | 8 GB (Sys) | 16 it/s | ✓ | | | ✓ | | Apache 2.0 |
+| **JoyTag** | 4 GB | 9.1 it/s | ✓ | | | | | Apache 2.0 |
+| **JoyCaption** | 20 GB | 1 it/s | | ✓ | ✓ | ✓ | | Unknown |
+| **Florence 2 Large** | 4 GB | 3.7 it/s | | ✓ | | | | MIT |
+| **MiaoshouAI Florence-2** | 4 GB | 3.3 it/s | | ✓ | | | | MIT |
+| **MimoVL** | 24 GB | 0.4 it/s | | ✓ | ✓ | | | MIT |
+| **QwenVL 2.7B** | 24 GB | 0.9 it/s | | ✓ | ✓ | | ✓ | Apache 2.0 |
+| **Qwen2-VL-7B Relaxed** | 24 GB | 0.9 it/s | | ✓ | ✓ | | ✓ | Apache 2.0 |
+| **Qwen3-VL** | 8 GB | 1.36 it/s | | ✓ | ✓ | ✓ | ✓ | Apache 2.0 |
+| **Moondream 1** | 8 GB | 0.44 it/s | | ✓ | ✓ | | | Non-Commercial |
+| **Moondream 2** | 8 GB | 0.6 it/s | | ✓ | ✓ | | | Apache 2.0 |
+| **Moondream 3** | 24 GB | 0.16 it/s | | ✓ | ✓ | | | BSL 1.1 |
+| **PaliGemma 2 10B** | 24 GB | 0.75 it/s | | ✓ | ✓ | | | Gemma |
+| **Paligemma LongPrompt** | 8 GB | 2 it/s | | ✓ | ✓ | | | Gemma |
+| **Pixtral 12B** | 16 GB | 0.17 it/s | | ✓ | ✓ | ✓ | | Apache 2.0 |
+| **SmolVLM** | 4 GB | 1.5 it/s | | ✓ | ✓ | ✓ | | Apache 2.0 |
+| **SmolVLM 2** | 4 GB | 2 it/s | | ✓ | ✓ | ✓ | ✓ | Apache 2.0 |
+| **ToriiGate** | 16 GB | 0.16 it/s | | ✓ | ✓ | | | Apache 2.0 |
+
+> **Note**: Minimum VRAM estimates based on quantization and optimized batch sizes. Speed measured on RTX 5090.
 
 ---
 
-## Detailed Feature Documentation
+# Detailed Feature Documentation
 
 ### Generation Parameters
 
@@ -193,33 +221,6 @@ Manage prompt templates for quick access:
 | **Flash Attention** | Enable memory-efficient attention | Most transformer models |
 | **FPS** | Frame rate for video processing | Video-capable models |
 | **Threshold** | Tag confidence threshold (taggers only) | WD14, JoyTag |
-
----
-
-## Supported Models
-
-| Model | Min VRAM | Speed | Tags | Natural Language | Custom Prompts | Versions | Video | License |
-| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| **WD14 Tagger** | 8 GB (Sys) | 16 it/s | ✓ | | | ✓ | | Apache 2.0 |
-| **JoyTag** | 4 GB | 9.1 it/s | ✓ | | | | | Apache 2.0 |
-| **JoyCaption** | 20 GB | 1 it/s | | ✓ | ✓ | ✓ | | Unknown |
-| **Florence 2 Large** | 4 GB | 3.7 it/s | | ✓ | | | | MIT |
-| **MiaoshouAI Florence-2** | 4 GB | 3.3 it/s | | ✓ | | | | MIT |
-| **MimoVL** | 24 GB | 0.4 it/s | | ✓ | ✓ | | | MIT |
-| **QwenVL 2.7B** | 24 GB | 0.9 it/s | | ✓ | ✓ | | ✓ | Apache 2.0 |
-| **Qwen2-VL-7B Relaxed** | 24 GB | 0.9 it/s | | ✓ | ✓ | | ✓ | Apache 2.0 |
-| **Qwen3-VL** | 8 GB | 1.36 it/s | | ✓ | ✓ | ✓ | ✓ | Apache 2.0 |
-| **Moondream 1** | 8 GB | 0.44 it/s | | ✓ | ✓ | | | Non-Commercial |
-| **Moondream 2** | 8 GB | 0.6 it/s | | ✓ | ✓ | | | Apache 2.0 |
-| **Moondream 3** | 24 GB | 0.16 it/s | | ✓ | ✓ | | | BSL 1.1 |
-| **PaliGemma 2 10B** | 24 GB | 0.75 it/s | | ✓ | ✓ | | | Gemma |
-| **Paligemma LongPrompt** | 8 GB | 2 it/s | | ✓ | ✓ | | | Gemma |
-| **Pixtral 12B** | 16 GB | 0.17 it/s | | ✓ | ✓ | ✓ | | Apache 2.0 |
-| **SmolVLM** | 4 GB | 1.5 it/s | | ✓ | ✓ | ✓ | | Apache 2.0 |
-| **SmolVLM 2** | 4 GB | 2 it/s | | ✓ | ✓ | ✓ | ✓ | Apache 2.0 |
-| **ToriiGate** | 16 GB | 0.16 it/s | | ✓ | ✓ | | | Apache 2.0 |
-
-> **Note**: Minimum VRAM estimates based on quantization and optimized batch sizes. Speed measured on RTX 5090.
 
 ---
 
