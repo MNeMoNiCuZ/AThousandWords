@@ -149,6 +149,10 @@ def create_ui(startup_message=None):
                 settings_reset_confirm_btn = settings_components["reset_confirm_btn"]
                 settings_reset_cancel_btn = settings_components["reset_cancel_btn"]
                 theme_mode_radio = settings_components["theme_mode"]
+                tools_chk = settings_components["tools_chk"]
+                tool_order_textbox = settings_components["tool_order_textbox"]
+                tool_order_radio = settings_components["tool_order_radio"]
+                tool_order_state = settings_components["tool_order_state"]
 
 
             # Tab 5: Model Information
@@ -307,7 +311,8 @@ def create_ui(startup_message=None):
                 out_dir, out_fmt, g_over, g_recursive, g_console, g_unload_model,
                 pre_text, suf_text, g_clean, g_collapse, g_normalize, g_remove_chinese, g_strip_loop,
                 g_max_width, g_max_height, model_sel, model_version_dropdown, 
-                batch_size_input, max_tokens_input, settings_state, items_per_page
+                batch_size_input, max_tokens_input, settings_state, items_per_page,
+                tools_chk, tool_order_textbox
             ],
             outputs=[]
         )
@@ -376,8 +381,13 @@ def create_ui(startup_message=None):
                 model_sel,  # Model
                 model_order_textbox,  # Model Order (hidden)
                 model_order_radio,  # Model Order Radio (NEW)
+                model_order_state,  # Model Order State (NEW)
                 items_per_page,
-                pagination_row
+                pagination_row,
+                tools_chk,
+                tool_order_textbox,
+                tool_order_radio,
+                tool_order_state  # Tool Order State (NEW)
             ]
         )
         
@@ -395,65 +405,24 @@ def create_ui(startup_message=None):
         multi_checkboxes_list = list(multi_model_components["checkboxes"].values())
         multi_formats_list = list(multi_model_components["formats"].values())
         
+        # Helper to extract tool tabs in correct order
+        tool_tabs_list = []
+        # tool_components was created using app.sorted_tools, so if we trust dict order it's fine,
+        # but to be safe we can re-iterate app.sorted_tools provided it hasn't changed.
+        # However, tool_components has keys that are exactly app.sorted_tools at creation time.
+        # Dict insertion order is preserved in Python 3.7+.
+        for comp in tool_components.values():
+            if "tab" in comp:
+                tool_tabs_list.append(comp["tab"])
+
         settings_save_btn.click(
             app.save_settings_simple,
-            inputs=[vram_inp, system_ram_inp, models_chk, gal_cols, gal_rows_slider, g_unload_model, model_order_textbox, items_per_page, theme_mode_radio],
-            outputs=[model_sel, models_chk, model_order_radio] + multi_checkboxes_list + multi_formats_list
+            inputs=[vram_inp, system_ram_inp, models_chk, gal_cols, gal_rows_slider, g_unload_model, model_order_textbox, items_per_page, theme_mode_radio, tools_chk, tool_order_textbox],
+            outputs=[model_sel, models_chk, model_order_radio, tool_order_radio] + multi_checkboxes_list + multi_formats_list + tool_tabs_list
         )
 
-        
-        # Reset to Defaults - requires manual page refresh after reset
-        def request_reset_confirmation():
-            """Hide reset button, show confirmation buttons."""
-            return (
-                gr.update(visible=False), # reset_btn
-                gr.update(visible=True),  # confirm
-                gr.update(visible=True)   # cancel
-            )
-
-        def cancel_reset_confirmation():
-            """Hide confirmation buttons, show reset button."""
-            return (
-                gr.update(visible=True),  # reset_btn
-                gr.update(visible=False), # confirm
-                gr.update(visible=False)  # cancel
-            )
-
-        def execute_reset():
-            """Execute logic and restore buttons."""
-            success, message = app.reset_to_defaults()
-            if success:
-                gr.Info(message)
-            else:
-                gr.Warning(message)
-            
-            # Restore UI state
-            return (
-                gr.update(visible=True),  # reset_btn
-                gr.update(visible=False), # confirm
-                gr.update(visible=False)  # cancel
-            )
-        
-        # 1. Click Reset -> Show Confirmation
-        settings_reset_btn.click(
-            request_reset_confirmation,
-            inputs=[],
-            outputs=[settings_reset_btn, settings_reset_confirm_btn, settings_reset_cancel_btn]
-        )
-
-        # 2. Click Cancel -> Restore
-        settings_reset_cancel_btn.click(
-            cancel_reset_confirmation,
-            inputs=[],
-            outputs=[settings_reset_btn, settings_reset_confirm_btn, settings_reset_cancel_btn]
-        )
-
-        # 3. Click Confirm -> Execute and Restore
-        settings_reset_confirm_btn.click(
-            execute_reset,
-            inputs=[],
-            outputs=[settings_reset_btn, settings_reset_confirm_btn, settings_reset_cancel_btn]
-        )
+        # Wire Settings Events (Move Up/Down, Reset, etc.)
+        wire_settings_events(app, settings_components, model_sel, models_chk)
 
         # Wire Up Tools (Dynamic - auto-discovered tools)
         for tool_name, components in tool_components.items():

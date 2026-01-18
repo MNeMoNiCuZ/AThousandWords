@@ -19,15 +19,24 @@ def create_tools_tab(app) -> dict:
     """
     tool_components = {}
     
+    tool_components = {}
+    
+    # Use app.sorted_tools to ensure consistent order
+    from src.tools import get_tool
+    
     with gr.Tabs():
-        for tool_name, tool in get_all_tools().items():
-            with gr.Tab(tool.config.display_name):
-                run_btn, inputs = tool.create_gui(app)
-                tool_components[tool_name] = {
-                    "tool": tool,
-                    "run_btn": run_btn,
-                    "inputs": inputs
-                }
+        for tool_name in app.sorted_tools:
+            tool = get_tool(tool_name)
+            if tool:
+                is_visible = tool_name in app.enabled_tools
+                with gr.Tab(tool.config.display_name, visible=is_visible) as tool_tab:
+                    run_btn, inputs = tool.create_gui(app)
+                    tool_components[tool_name] = {
+                        "tool": tool,
+                        "run_btn": run_btn,
+                        "inputs": inputs,
+                        "tab": tool_tab
+                    }
     
     return tool_components
 

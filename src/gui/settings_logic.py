@@ -82,7 +82,59 @@ def move_model_down(app, selected_model, current_order_state):
     )
 
 
-def save_settings(app, vram, models_checked, gal_cols, gal_rows, limit_cnt, o_dir, o_fmt, over, rec, con, unload, pre, suf, clean, collapse, normalize, remove_cn, strip_loop, max_w, max_h, current_mod_id, model_ver, batch_sz, max_tok, settings_state, items_per_page):
+def move_tool_up(app, selected_tool, current_order_state):
+    """Move selected tool up in the order list."""
+    if not selected_tool:
+        gr.Warning("Please select a tool first")
+        return gr.update(), gr.update(), current_order_state
+    
+    current_order = list(current_order_state)
+    
+    if selected_tool not in current_order:
+        gr.Warning(f"Tool {selected_tool} not found in order list")
+        return gr.update(), gr.update(), current_order_state
+    
+    idx = current_order.index(selected_tool)
+    if idx == 0:
+        gr.Info("Tool is already at the top")
+        return gr.update(), gr.update(), current_order_state
+    
+    current_order[idx], current_order[idx - 1] = current_order[idx - 1], current_order[idx]
+    
+    return (
+        gr.update(choices=current_order, value=selected_tool), 
+        gr.update(value="\n".join(current_order)),
+        current_order
+    )
+
+
+def move_tool_down(app, selected_tool, current_order_state):
+    """Move selected tool down in the order list."""
+    if not selected_tool:
+        gr.Warning("Please select a tool first")
+        return gr.update(), gr.update(), current_order_state
+    
+    current_order = list(current_order_state)
+    
+    if selected_tool not in current_order:
+        gr.Warning(f"Tool {selected_tool} not found in order list")
+        return gr.update(), gr.update(), current_order_state
+    
+    idx = current_order.index(selected_tool)
+    if idx >= len(current_order) - 1:
+        gr.Info("Tool is already at the bottom")
+        return gr.update(), gr.update(), current_order_state
+    
+    current_order[idx], current_order[idx + 1] = current_order[idx + 1], current_order[idx]
+    
+    return (
+        gr.update(choices=current_order, value=selected_tool), 
+        gr.update(value="\n".join(current_order)),
+        current_order
+    )
+
+
+def save_settings(app, vram, models_checked, gal_cols, gal_rows, limit_cnt, o_dir, o_fmt, over, rec, con, unload, pre, suf, clean, collapse, normalize, remove_cn, strip_loop, max_w, max_h, current_mod_id, model_ver, batch_sz, max_tok, settings_state, items_per_page, tools_checked, tool_order):
     """Save settings from the main UI directly to user_config.yaml."""
     
     app.config_mgr.user_config.update({
@@ -106,7 +158,11 @@ def save_settings(app, vram, models_checked, gal_cols, gal_rows, limit_cnt, o_di
         'strip_loop': strip_loop,
         'max_width': int(max_w) if max_w else None,
         'max_height': int(max_h) if max_h else None,
-        'unload_model': unload
+        'max_width': int(max_w) if max_w else None,
+        'max_height': int(max_h) if max_h else None,
+        'unload_model': unload,
+        'disabled_tools': list(set(app.tools) - set(tools_checked)),
+        'tool_order': tool_order.split('\n') if isinstance(tool_order, str) else tool_order
     })
     
     if current_mod_id and isinstance(current_mod_id, str):
@@ -220,9 +276,10 @@ def save_settings(app, vram, models_checked, gal_cols, gal_rows, limit_cnt, o_di
     return []
 
 
-def save_settings_simple(app, vram, system_ram, models_checked, gal_cols, gal_rows, unload, model_order_text, items_per_page, theme_mode):
+def save_settings_simple(app, vram, system_ram, models_checked, gal_cols, gal_rows, unload, model_order_text, items_per_page, theme_mode, tools_checked, tool_order_text):
     """Save settings from the Settings tab (simplified version)."""
     model_order_lines = [line.strip() for line in model_order_text.split('\n') if line.strip()]
+    tool_order_lines = [line.strip() for line in tool_order_text.split('\n') if line.strip()]
     
     all_models_set = set(app.models)
     invalid_models = [m for m in model_order_lines if m not in all_models_set]
@@ -240,7 +297,9 @@ def save_settings_simple(app, vram, system_ram, models_checked, gal_cols, gal_ro
         'disabled_models': list(set(app.models) - set(models_checked)),
         'unload_model': unload,
         'model_order': valid_model_order,
-        'theme_mode': theme_mode
+        'theme_mode': theme_mode,
+        'disabled_tools': list(set(app.tools) - set(tools_checked)),
+        'tool_order': tool_order_lines
     })
     
     app.gallery_columns = int(gal_cols)
@@ -269,8 +328,16 @@ def save_settings_simple(app, vram, system_ram, models_checked, gal_cols, gal_ro
     else:
         gr.Info("Settings saved successfully!")
         
+    tool_updates = []
+    # Make sure to iterate in creation order (startup_tool_order) to match fixed Tab components
+    for tool_name in app.startup_tool_order:
+        is_visible = tool_name in app.enabled_tools
+        tool_updates.append(gr.update(visible=is_visible))
+
     radio_update = gr.update(choices=app.models, value=None)
-    return [model_dd_update, model_chk_update, radio_update] + multi_updates
+    tool_radio_update = gr.update(choices=tool_order_lines, value=None)
+    
+    return [model_dd_update, model_chk_update, radio_update, tool_radio_update] + multi_updates + tool_updates
 
 
 def reset_to_defaults(app):
@@ -304,7 +371,15 @@ def load_settings(app):
     if app.current_model_id not in app.enabled_models and app.enabled_models:
         app.current_model_id = app.enabled_models[0]
     
-    current_order = app.config_mgr.user_config.get('model_order', app.config_mgr.global_config.get('model_order', app.models))
+    
+    current_order = app.sorted_models
+    
+    # Tool settings
+    all_tools = app.tools
+    full_tool_order = app.sorted_tools
+    
+    disabled_tools = app.config_mgr.user_config.get('disabled_tools', [])
+    enabled_tools = [t for t in full_tool_order if t not in disabled_tools]
     
     try:
          presets_data = app.get_user_presets_dataframe()
@@ -328,8 +403,13 @@ def load_settings(app):
         app.current_model_id if app.current_model_id else (app.enabled_models[0] if app.enabled_models else ""),
         "\n".join(current_order),
         gr.update(choices=current_order, value=None),
+        current_order,  # Update model_order_state
         app.gallery_items_per_page,
-        app._get_pagination_vis()
+        app._get_pagination_vis(),
+        enabled_tools,
+        "\n".join(full_tool_order),
+        gr.update(choices=full_tool_order, value=None),
+        full_tool_order  # Update tool_order_state
     ]
 
 

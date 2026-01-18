@@ -41,6 +41,7 @@ from . import run_inference_logic as _run_inference
 from . import settings_logic as _settings
 from .logic import model_logic as _model_logic
 import src.features as feature_registry
+from src.tools import get_all_tools
 
 logger = logging.getLogger("GUI")
 
@@ -67,6 +68,10 @@ class CaptioningApp:
         items_per_page = settings.get('gallery_items_per_page', 50)
         self._pagination = PaginationState(items_per_page)
         self._gallery = GalleryState(self.config_mgr)
+
+        # Snapshot of tool order at startup to ensure consistent UI updates
+        # This matches the order in which Tabs are created in the UI
+        self.startup_tool_order = self.sorted_tools
     
     # Property shortcuts delegating to state modules
     
@@ -97,6 +102,51 @@ class CaptioningApp:
     @current_model_id.setter
     def current_model_id(self, value):
         self._model_mgr.current_model_id = value
+
+    @property
+    def sorted_models(self):
+        """All models sorted by user preference."""
+        all_models = self.models
+        
+        # Get saved configuration
+        model_order = self.config_mgr.user_config.get('model_order', [])
+        
+        # 1. Start with user defined order (filtering out any that no longer exist)
+        sorted_models = [m for m in model_order if m in all_models]
+        
+        # 2. Append new models (alphabetically)
+        new_models = sorted([m for m in all_models if m not in sorted_models])
+        sorted_models.extend(new_models)
+        
+        return sorted_models
+
+    @property
+    def tools(self):
+        """All available tool names."""
+        return list(get_all_tools().keys())
+
+    @property
+    def sorted_tools(self):
+        """All tools sorted by user preference."""
+        all_tools = self.tools
+        
+        # Get saved configuration
+        tool_order = self.config_mgr.user_config.get('tool_order', [])
+        
+        # 1. Start with user defined order (filtering out any that no longer exist)
+        sorted_tools = [t for t in tool_order if t in all_tools]
+        
+        # 2. Append new tools (alphabetically)
+        new_tools = sorted([t for t in all_tools if t not in sorted_tools])
+        sorted_tools.extend(new_tools)
+        
+        return sorted_tools
+
+    @property
+    def enabled_tools(self):
+        """Enabled tool names, sorted by user preference."""
+        disabled_tools = self.config_mgr.user_config.get('disabled_tools', [])
+        return [t for t in self.sorted_tools if t not in disabled_tools]
     
     @property
     def selected_path(self):
@@ -197,6 +247,14 @@ class CaptioningApp:
         """Move selected model down in the order list."""
         return _settings.move_model_down(self, selected_model, current_order_state)
 
+    def move_tool_up(self, selected_tool, current_order_state):
+        """Move selected tool up in the order list."""
+        return _settings.move_tool_up(self, selected_tool, current_order_state)
+    
+    def move_tool_down(self, selected_tool, current_order_state):
+        """Move selected tool down in the order list."""
+        return _settings.move_tool_down(self, selected_tool, current_order_state)
+
     def get_models_by_media_type(self, media_type: str) -> list:
         """Filter models by media type (Image or Video).
         
@@ -231,13 +289,13 @@ class CaptioningApp:
         new_val = self.current_model_id if self.current_model_id in self.enabled_models else (self.enabled_models[0] if self.enabled_models else None)
         return gr.update(choices=self.enabled_models, value=new_val), gr.update(choices=self.models, value=self.enabled_models)
 
-    def save_settings(self, vram, models_checked, gal_cols, gal_rows, limit_cnt, o_dir, o_fmt, over, rec, con, unload, pre, suf, clean, collapse, normalize, remove_cn, strip_loop, max_w, max_h, current_mod_id, model_ver, batch_sz, max_tok, settings_state, items_per_page):
+    def save_settings(self, vram, models_checked, gal_cols, gal_rows, limit_cnt, o_dir, o_fmt, over, rec, con, unload, pre, suf, clean, collapse, normalize, remove_cn, strip_loop, max_w, max_h, current_mod_id, model_ver, batch_sz, max_tok, settings_state, items_per_page, tools_checked, tool_order):
         """Save settings from the main UI directly to user_config.yaml."""
-        return _settings.save_settings(self, vram, models_checked, gal_cols, gal_rows, limit_cnt, o_dir, o_fmt, over, rec, con, unload, pre, suf, clean, collapse, normalize, remove_cn, strip_loop, max_w, max_h, current_mod_id, model_ver, batch_sz, max_tok, settings_state, items_per_page)
+        return _settings.save_settings(self, vram, models_checked, gal_cols, gal_rows, limit_cnt, o_dir, o_fmt, over, rec, con, unload, pre, suf, clean, collapse, normalize, remove_cn, strip_loop, max_w, max_h, current_mod_id, model_ver, batch_sz, max_tok, settings_state, items_per_page, tools_checked, tool_order)
     
-    def save_settings_simple(self, vram, system_ram, models_checked, gal_cols, gal_rows, unload, model_order_text, items_per_page, theme_mode):
+    def save_settings_simple(self, vram, system_ram, models_checked, gal_cols, gal_rows, unload, model_order_text, items_per_page, theme_mode, tools_checked, tool_order_text):
         """Save settings from the Settings tab (simplified version)."""
-        return _settings.save_settings_simple(self, vram, system_ram, models_checked, gal_cols, gal_rows, unload, model_order_text, items_per_page, theme_mode)
+        return _settings.save_settings_simple(self, vram, system_ram, models_checked, gal_cols, gal_rows, unload, model_order_text, items_per_page, theme_mode, tools_checked, tool_order_text)
     
     def reset_to_defaults(self):
         """Delete user_config.yaml to reset all settings to defaults."""
@@ -418,7 +476,7 @@ class CaptioningApp:
                 thumb_path = media.get_thumbnail_path()
                 if thumb_path:
                     image_path = thumb_path
-                caption = f"🎬 {caption}"
+                caption = f"[VIDEO] {caption}"
             
             gallery_data.append((image_path, caption))
         
