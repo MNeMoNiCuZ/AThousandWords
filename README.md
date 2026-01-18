@@ -4,7 +4,7 @@ A powerful, customizable, and user-friendly batch captioning tool for VLM (Visio
 
 ## Key Features
 
-- **Extensive Model Support**: 18+ models including taggers (WD14, JoyTag), VLMs (SmolVLM, Qwen, Moondream), and specialized captioners (JoyCaption, Florence-2).
+- **Extensive Model Support**: 20+ models including WD14, JoyTag, JoyCaption, Florence2, Qwen 2.5, Qwen 3.5, Moondream(s), Paligemma, Pixtral, smolVLM, ToriiGate).
 - **Batch Processing**: Process entire folders and datasets in one go with a GUI or simple CLI command.
 - **Multi Model Batch Processing**: Process the same image with several different models all at once (queued).
 - **Dual Interface**:
