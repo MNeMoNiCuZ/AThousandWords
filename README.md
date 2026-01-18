@@ -2,6 +2,11 @@
 
 A powerful, customizable, and user-friendly batch captioning tool for VLM (Vision Language Models). Designed for dataset creation, this tool supports 20+ state-of-the-art models and versions, offering both a feature-rich GUI and a fully scriptable CLI commands.
 
+<img width="1969" height="1101" alt="image" src="https://github.com/user-attachments/assets/2380cffe-9cc5-4335-94a2-a9b3a295bb90" />
+
+<img width="1986" height="1024" alt="image" src="https://github.com/user-attachments/assets/f0802e4a-e2e2-468a-a922-fe91eaf78b8f" />
+
+
 ## Key Features
 
 - **Extensive Model Support**: 20+ models including WD14, JoyTag, JoyCaption, Florence2, Qwen 2.5, Qwen 3.5, Moondream(s), Paligemma, Pixtral, smolVLM, ToriiGate).
@@ -76,6 +81,9 @@ A powerful, customizable, and user-friendly batch captioning tool for VLM (Visio
 
 The main workspace for image and video captioning:
 
+<img width="1958" height="1167" alt="image" src="https://github.com/user-attachments/assets/e93509ea-2970-46f7-9873-57642d28a366" />
+
+
 - **Model Selection**: Choose from 20+ models with good presets, information about VRAM requirements, speed, capabilities, license
 - **Prompt Configuration**: Use preset prompt templates or create custom prompts with support for system prompts
 - **Custom Per-Image Prompts**: Use text-files or image metadata as input prompts, or combine them with a prompt prefix/suffix for per image captioning instructions
@@ -92,15 +100,22 @@ The main workspace for image and video captioning:
 
 Run multiple models on the same dataset for comparison or ensemble captioning:
 
+<img width="1979" height="895" alt="image" src="https://github.com/user-attachments/assets/7d208ab6-3042-4635-9c3a-7cee8ddb3675" />
+
 - **Sequential Processing**: Run multiple models one after another on the same input folder
 - **Per-Model Configuration**: Each model uses its settings from the captioning page
 
 ### Tools Tab
 
+<img width="860" height="135" alt="image" src="https://github.com/user-attachments/assets/858a65a6-02ca-47e0-90d8-4d9bf109729b" />
+
 Run various scripts and tools to manipulate and manage your files:
 
 #### Augment
 Augment small datasets with randomized variations:
+
+<img width="2173" height="451" alt="image" src="https://github.com/user-attachments/assets/86ea35af-31ad-4bf1-afc3-d24844b467da" />
+
 - Crop jitter, rotation, and flip transformations
 - Color adjustments (brightness, contrast, saturation, hue)
 - Blur, sharpen, and noise effects
@@ -109,6 +124,9 @@ Augment small datasets with randomized variations:
 
 #### Bucketing
 Analyze and organize images by aspect ratio for training optimization:
+
+<img width="1970" height="663" alt="image" src="https://github.com/user-attachments/assets/f48e543e-fa94-4aaf-b5b3-5a430bc8fabb" />
+
 - Automatic aspect ratio bucket detection
 - Visual distribution of images across buckets
 - Balance analysis for dataset quality
@@ -116,28 +134,38 @@ Analyze and organize images by aspect ratio for training optimization:
 
 #### Metadata Extractor
 Extract and analyze image metadata:
+
+<img width="2114" height="1147" alt="image" src="https://github.com/user-attachments/assets/5d16893b-050b-4553-b1ec-e680bb7ef05a" />
+
 - Read embedded captions and prompts from image files
 - Extract EXIF data and generation parameters
 - Batch export metadata to text files
 
 #### Resize Tool
 Batch resize images with flexible options:
+
+<img width="2073" height="1260" alt="image" src="https://github.com/user-attachments/assets/bd728423-d9a2-4b1e-a071-e78101fce38e" />
+
+
 - Configurable maximum dimensions (width/height)
 - Multiple resampling methods (Lanczos, Bilinear, etc.)
 - Output directory selection with prefix/suffix naming
 - Overwrite protection with optional bypass
 
 ## Presets
-
 Manage prompt templates for quick access:
+
+<img width="2002" height="960" alt="image" src="https://github.com/user-attachments/assets/d558d433-bbef-42ed-b625-decc3101e574" />
 
 - **Create Presets**: Save frequently used prompts as named presets
 - **Model Association**: Link presets to specific models
 - **Import/Export**: Share preset configurations
 
 ## Settings
-
 Configure global application defaults:
+
+<img width="1750" height="1310" alt="image" src="https://github.com/user-attachments/assets/9338ff1c-afc8-497b-bd0f-cd5ef753a640" />
+
 
 - **Output Settings**: Default output directory, format, overwrite behavior
 - **Processing Defaults**: Default text cleanup options, image resizing limits
@@ -149,6 +177,8 @@ Configure global application defaults:
 ### Model Information
 
 A detailed list of model properties and requirements to get an overview of what features the different models support.
+
+<img width="1972" height="655" alt="image" src="https://github.com/user-attachments/assets/9c4b8b60-bc26-4bd9-8034-d0088e45e709" />
 
 | Model | Min VRAM | Speed | Tags | Natural Language | Custom Prompts | Versions | Video | License |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
