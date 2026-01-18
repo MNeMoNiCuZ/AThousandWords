@@ -5,72 +5,7 @@ import gradio as gr
 import src.features as feature_registry
 
 
-def create_general_settings_accordion(app):
-    """Create the General Settings accordion with all processing options."""
-    cfg = app.config_mgr.get_global_settings()
-    components = {}
-    
-    with gr.Accordion("General Settings", open=False):
-        with gr.Row():
-            out_dir = gr.Textbox(label="Output Folder", value=cfg['output_dir'], placeholder="Leave empty for same folder as input", info="Directory for captions. Leave empty to save alongside input images.")
-            out_fmt = gr.Textbox(label="Output Format", value=cfg['output_format'], info="File extension (e.g., txt, json, caption)")
-            
-            rec_cfg = feature_registry.get_feature("recursive").get_gui_config()
-            g_recursive = gr.Checkbox(label=rec_cfg['label'], value=cfg['recursive'], info=rec_cfg['info'])
-            
-            ov_cfg = feature_registry.get_feature("overwrite").get_gui_config()
-            g_over = gr.Checkbox(label=ov_cfg['label'], value=cfg['overwrite'], info=ov_cfg['info'])
 
-        with gr.Row():
-            norm_cfg = feature_registry.get_feature("normalize_text").get_gui_config()
-            g_normalize = gr.Checkbox(label=norm_cfg['label'], value=cfg['normalize_text'], info=norm_cfg['info'])
-            
-            coll_cfg = feature_registry.get_feature("collapse_newlines").get_gui_config()
-            g_collapse = gr.Checkbox(label=coll_cfg['label'], value=cfg['collapse_newlines'], info=coll_cfg['info'])
-
-            clean_cfg = feature_registry.get_feature("clean_text").get_gui_config()
-            g_clean = gr.Checkbox(label=clean_cfg['label'], value=cfg['clean_text'], info=clean_cfg['info'])
-
-            con_cfg = feature_registry.get_feature("print_console").get_gui_config()
-            g_console = gr.Checkbox(label=con_cfg['label'], value=cfg['print_console'], info=con_cfg['info'])
-
-        with gr.Row():
-            slp_cfg = feature_registry.get_feature("strip_loop").get_gui_config()
-            g_strip_loop = gr.Checkbox(label=slp_cfg['label'], value=cfg['strip_loop'], info=slp_cfg['info'])
-            
-            rem_cfg = feature_registry.get_feature("remove_chinese").get_gui_config()
-            g_remove_chinese = gr.Checkbox(label=rem_cfg['label'], value=cfg['remove_chinese'], info=rem_cfg['info'])
-            
-            mw_cfg = feature_registry.get_feature("max_width").get_gui_config()
-            g_max_width = gr.Number(label=mw_cfg['label'], value=cfg['max_width'], info=mw_cfg['info'])
-            
-            mh_cfg = feature_registry.get_feature("max_height").get_gui_config()
-            g_max_height = gr.Number(label=mh_cfg['label'], value=cfg['max_height'], info=mh_cfg['info'])
-
-        with gr.Row():
-            pre_cfg = feature_registry.get_feature("prefix").get_gui_config()
-            pre_text = gr.Textbox(label=pre_cfg['label'], value=cfg['prefix'], placeholder="photo of, ", info=pre_cfg['info'])
-            
-            suf_cfg = feature_registry.get_feature("suffix").get_gui_config()
-            suf_text = gr.Textbox(label=suf_cfg['label'], value=cfg['suffix'], placeholder=", high quality", info=suf_cfg['info'])
-
-    components = {
-        "out_dir": out_dir,
-        "out_fmt": out_fmt,
-        "recursive": g_recursive,
-        "overwrite": g_over,
-        "normalize": g_normalize,
-        "collapse": g_collapse,
-        "clean": g_clean,
-        "console": g_console,
-        "strip_loop": g_strip_loop,
-        "remove_chinese": g_remove_chinese,
-        "max_width": g_max_width,
-        "max_height": g_max_height,
-        "prefix": pre_text,
-        "suffix": suf_text
-    }
-    return components
 
 
 def create_model_settings_accordion(app, get_model_description_html_fn):

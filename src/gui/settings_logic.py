@@ -276,7 +276,8 @@ def save_settings(app, vram, models_checked, gal_cols, gal_rows, limit_cnt, o_di
     return []
 
 
-def save_settings_simple(app, vram, system_ram, models_checked, gal_cols, gal_rows, unload, model_order_text, items_per_page, theme_mode, tools_checked, tool_order_text):
+def save_settings_simple(app, vram, system_ram, models_checked, gal_cols, gal_rows, unload, model_order_text, items_per_page, theme_mode, tools_checked, tool_order_text,
+                         out_dir, out_fmt, rec, over, normalize, collapse, clean, con, strip_loop, remove_cn, max_w, max_h, pre, suf):
     """Save settings from the Settings tab (simplified version)."""
     model_order_lines = [line.strip() for line in model_order_text.split('\n') if line.strip()]
     tool_order_lines = [line.strip() for line in tool_order_text.split('\n') if line.strip()]
@@ -299,7 +300,21 @@ def save_settings_simple(app, vram, system_ram, models_checked, gal_cols, gal_ro
         'model_order': valid_model_order,
         'theme_mode': theme_mode,
         'disabled_tools': list(set(app.tools) - set(tools_checked)),
-        'tool_order': tool_order_lines
+        'tool_order': tool_order_lines,
+        'output_dir': out_dir,
+        'output_format': out_fmt,
+        'recursive': rec,
+        'overwrite': over,
+        'normalize_text': normalize,
+        'collapse_newlines': collapse,
+        'clean_text': clean,
+        'print_console': con,
+        'strip_loop': strip_loop,
+        'remove_chinese': remove_cn,
+        'max_width': int(max_w) if max_w else None,
+        'max_height': int(max_h) if max_h else None,
+        'prefix': pre,
+        'suffix': suf
     })
     
     app.gallery_columns = int(gal_cols)
@@ -390,26 +405,32 @@ def load_settings(app):
          presets_choices = ["All Models"]
 
     return [
-        cfg['gpu_vram'], 
+        cfg['gpu_vram'],
+        cfg.get('system_ram', 32),
         app.config_mgr.get_enabled_models(),
         app.gallery_columns,
         app.gallery_rows,
-        "" if not cfg.get('limit_count') else cfg['limit_count'],
-        cfg['output_dir'], cfg['output_format'], cfg['overwrite'],
-        cfg['recursive'], cfg['print_console'], cfg.get('unload_model', True), cfg['clean_text'], cfg['collapse_newlines'],
-        cfg['normalize_text'], cfg['remove_chinese'], cfg['strip_loop'],
-        cfg['max_width'], cfg['max_height'],
-        cfg['prefix'], cfg['suffix'],
-        app.current_model_id if app.current_model_id else (app.enabled_models[0] if app.enabled_models else ""),
+        cfg.get('unload_model', True),
         "\n".join(current_order),
-        gr.update(choices=current_order, value=None),
-        current_order,  # Update model_order_state
         app.gallery_items_per_page,
-        app._get_pagination_vis(),
+        cfg.get('theme_mode', 'Dark'),
         enabled_tools,
         "\n".join(full_tool_order),
+        
+        # General Captioning Settings
+        cfg['output_dir'], cfg['output_format'], cfg['recursive'], cfg['overwrite'],
+        cfg['normalize_text'], cfg['collapse_newlines'], cfg['clean_text'], cfg['print_console'],
+        cfg['strip_loop'], cfg['remove_chinese'], cfg['max_width'], cfg['max_height'],
+        cfg['prefix'], cfg['suffix'],
+        
+        # Internal state updates
+        app.current_model_id if app.current_model_id else (app.enabled_models[0] if app.enabled_models else ""),
+        gr.update(choices=current_order, value=None),
+        current_order,
+        app._get_pagination_vis(),
         gr.update(choices=full_tool_order, value=None),
-        full_tool_order  # Update tool_order_state
+        full_tool_order,
+        "" if not cfg.get('limit_count') else cfg['limit_count']
     ]
 
 

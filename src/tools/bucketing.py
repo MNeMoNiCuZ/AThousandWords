@@ -968,7 +968,6 @@ class BucketingTool(BaseTool):
         settings_inputs = [num_buckets, tolerance, max_per_bucket, manual_buckets, create_l, create_p, create_s, min_res, max_res, unassigned_action, file_action, output_dir]
         save_btn.click(save_settings, inputs=settings_inputs, outputs=[])
         
-        for c in [num_buckets, tolerance, max_per_bucket, manual_buckets, create_l, create_p, create_s, min_res, max_res]:
-            c.change(fn=analyze, inputs=all_inputs, outputs=[result_output])
+
 
 

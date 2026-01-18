@@ -22,7 +22,7 @@ from .handlers import (
 )
 from .dataset_gallery import create_dataset_gallery
 from .model_info import create_model_info_tab
-from .tabs import create_tools_tab, create_presets_tab, create_settings_tab, create_multi_model_tab, wire_multi_model_events, get_multi_model_reload_handler, create_general_settings_accordion, create_model_settings_accordion, create_control_area, update_prompt_source_visibility, update_models_by_media_type
+from .tabs import create_tools_tab, create_presets_tab, create_settings_tab, create_multi_model_tab, wire_multi_model_events, get_multi_model_reload_handler, create_model_settings_accordion, create_control_area, update_prompt_source_visibility, update_models_by_media_type
 from .tabs.tools import wire_tool_events
 from .tabs.presets import wire_presets_events
 from .tabs.settings import wire_settings_events
@@ -71,21 +71,8 @@ def create_ui(startup_message=None):
         with gr.Tabs():            
             with gr.Tab("Captioning"):
                 # General Settings Accordion (extracted to factory)
-                general_components = create_general_settings_accordion(app)
-                out_dir = general_components["out_dir"]
-                out_fmt = general_components["out_fmt"]
-                g_recursive = general_components["recursive"]
-                g_over = general_components["overwrite"]
-                g_normalize = general_components["normalize"]
-                g_collapse = general_components["collapse"]
-                g_clean = general_components["clean"]
-                g_console = general_components["console"]
-                g_strip_loop = general_components["strip_loop"]
-                g_remove_chinese = general_components["remove_chinese"]
-                g_max_width = general_components["max_width"]
-                g_max_height = general_components["max_height"]
-                pre_text = general_components["prefix"]
-                suf_text = general_components["suffix"]
+                # General Settings moved to Settings Tab
+
 
                 # Model Settings Accordion (extracted to factory)
                 model_components = create_model_settings_accordion(app, get_model_description_html)
@@ -153,6 +140,23 @@ def create_ui(startup_message=None):
                 tool_order_textbox = settings_components["tool_order_textbox"]
                 tool_order_radio = settings_components["tool_order_radio"]
                 tool_order_state = settings_components["tool_order_state"]
+
+                # Extract General Settings components for wiring
+
+                out_dir = settings_components["out_dir"]
+                out_fmt = settings_components["out_fmt"]
+                g_recursive = settings_components["recursive"]
+                g_over = settings_components["overwrite"]
+                g_normalize = settings_components["normalize"]
+                g_collapse = settings_components["collapse"]
+                g_clean = settings_components["clean"]
+                g_console = settings_components["console"]
+                g_strip_loop = settings_components["strip_loop"]
+                g_remove_chinese = settings_components["remove_chinese"]
+                g_max_width = settings_components["max_width"]
+                g_max_height = settings_components["max_height"]
+                pre_text = settings_components["prefix"]
+                suf_text = settings_components["suffix"]
 
 
             # Tab 5: Model Information
@@ -371,23 +375,25 @@ def create_ui(startup_message=None):
             app.load_settings,
             inputs=None,
             outputs=[
-                vram_inp, models_chk, gal_cols, gal_rows_slider, limit_count,  # System
-                out_dir, out_fmt, g_over,  # Output
-                g_recursive, g_console, g_unload_model, g_clean, g_collapse,  # Options
+                vram_inp, system_ram_inp, models_chk, gal_cols, gal_rows_slider,  # System
+                g_unload_model,
+                model_order_textbox, items_per_page, theme_mode_radio, # More System
+                tools_chk, tool_order_textbox,
+                
+                # General Settings
+                out_dir, out_fmt, g_recursive, g_over,
+                g_normalize, g_collapse, g_clean, g_console,
+                g_strip_loop, g_remove_chinese, g_max_width, g_max_height,
+                pre_text, suf_text,
 
-                g_normalize, g_remove_chinese, g_strip_loop,  # Text Processing
-                g_max_width, g_max_height,  # Image
-                pre_text, suf_text,  # Pre/Suffix
+                # State Updates
                 model_sel,  # Model
-                model_order_textbox,  # Model Order (hidden)
-                model_order_radio,  # Model Order Radio (NEW)
-                model_order_state,  # Model Order State (NEW)
-                items_per_page,
+                model_order_radio,  # Model Order Radio
+                model_order_state,  # Model Order State
                 pagination_row,
-                tools_chk,
-                tool_order_textbox,
                 tool_order_radio,
-                tool_order_state  # Tool Order State (NEW)
+                tool_order_state,  # Tool Order State
+                limit_count
             ]
         )
         
@@ -417,7 +423,10 @@ def create_ui(startup_message=None):
 
         settings_save_btn.click(
             app.save_settings_simple,
-            inputs=[vram_inp, system_ram_inp, models_chk, gal_cols, gal_rows_slider, g_unload_model, model_order_textbox, items_per_page, theme_mode_radio, tools_chk, tool_order_textbox],
+            inputs=[
+                vram_inp, system_ram_inp, models_chk, gal_cols, gal_rows_slider, g_unload_model, model_order_textbox, items_per_page, theme_mode_radio, tools_chk, tool_order_textbox,
+                out_dir, out_fmt, g_recursive, g_over, g_normalize, g_collapse, g_clean, g_console, g_strip_loop, g_remove_chinese, g_max_width, g_max_height, pre_text, suf_text
+            ],
             outputs=[model_sel, models_chk, model_order_radio, tool_order_radio] + multi_checkboxes_list + multi_formats_list + tool_tabs_list
         )
 
