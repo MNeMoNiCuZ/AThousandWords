@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   athousandwords:
     build: .
@@ -10,9 +8,13 @@ services:
     volumes:
       - ./user:/app/user  # Persist user config and uploads
       - ./input:/app/input  # Mount input directory
-      # - ./models:/app/models # Optional: mount models if stored within app
+     #- ./models:/app/models # Persist Hugging Face cache/models
+      - ./src:/app/src
+      - ./gui.py:/app/gui.py
+      - ./captioner.py:/app/captioner.py
     environment:
       - GRADIO_SERVER_NAME=0.0.0.0
+      - HF_HOME=/app/models
     deploy:
       resources:
         reservations:
