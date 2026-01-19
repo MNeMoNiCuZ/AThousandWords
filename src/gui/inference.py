@@ -121,7 +121,7 @@ def start_processing(is_valid):
             value=None,
             variant="secondary",
             interactive=False,
-            elem_classes="processing-btn"
+            elem_classes=["processing-btn"]
         )
     )
 
@@ -226,18 +226,19 @@ def tool_start_processing(button_text: str = "Run Tool"):
             value=None,
             variant="secondary",
             interactive=False,
-            elem_classes="processing-btn"
+            elem_classes=["processing-btn"]
         )
     )
 
 
-def tool_finish_processing(button_text: str, generated_files: list = None):
+def tool_finish_processing(button_text: str, generated_files: list = None, zip_prefix: str = "tool_output"):
     """
     Return UI updates for when a tool finishes processing.
     
     Args:
         button_text: Text to restore on the run button (e.g., "Augment Dataset")
         generated_files: List of file paths. If provided and non-empty, creates zip and shows download.
+        zip_prefix: Prefix for the generated zip filename (e.g., "augmented_images").
         
     Returns tuple for: (run_button, download_btn_group, download_btn)
     """
@@ -249,7 +250,7 @@ def tool_finish_processing(button_text: str, generated_files: list = None):
     
     # If files were generated, create zip and show download button
     if generated_files:
-        zip_path = file_loader.create_zip(generated_files)
+        zip_path = file_loader.create_zip(generated_files, base_name=zip_prefix)
         if zip_path:
             dl_grp = gr.update(visible=True)
             dl_btn = gr.update(
@@ -258,7 +259,7 @@ def tool_finish_processing(button_text: str, generated_files: list = None):
                 interactive=True,
                 variant="primary",
                 icon=str(Path(__file__).parent.parent / "core" / "download_white.svg"),
-                elem_classes="download-btn"
+                elem_classes=["download-btn"]
             )
     
     return (

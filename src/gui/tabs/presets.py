@@ -75,7 +75,7 @@ def create_presets_tab(app, presets_tracker: gr.State) -> dict:
     Returns:
         dict of component references
     """
-    gr.Markdown("### 📚 User Prompt Presets")
+    gr.Markdown("### User Prompt Presets")
     
     with gr.Accordion("Add Preset", open=True):
         with gr.Row():

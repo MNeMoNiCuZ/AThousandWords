@@ -668,7 +668,10 @@ class BucketingTool(BaseTool):
         gr.Info(f"{action_word} {copied} files to {output_dir}")
         return self._generate_report(result, output_dir, file_action, unassigned_action)
     
-    def create_gui(self, app) -> tuple:
+    def create_gui(self, app, is_server_mode=False) -> tuple:
+        self._is_server_mode = is_server_mode
+        self._app = app
+        
         gr.Markdown(self.config.description)
         
         with gr.Accordion("Bucketing Settings", open=True):
@@ -719,7 +722,8 @@ class BucketingTool(BaseTool):
             with gr.Row():
                 output_dir = gr.Textbox(
                     label="Directory", placeholder="Required for Organize",
-                    info="Destination folder for organized files"
+                    info="Destination folder for organized files",
+                    visible=not is_server_mode
                 )
                 file_action = gr.Dropdown(
                     choices=["Copy", "Move"], value="Copy", label="Action",
@@ -736,11 +740,21 @@ class BucketingTool(BaseTool):
             analyze_btn = gr.Button("Analyze", variant="secondary", elem_id="bucket_analyze_btn")
             prune_btn = gr.Button("Prune to Balanced", variant="secondary", elem_id="bucket_prune_btn")
             organize_btn = gr.Button("Organize", variant="primary", elem_id="bucket_organize_btn")
+            
+            # Download button for server mode
+            with gr.Column(visible=False, scale=0, min_width=80, elem_classes="download-btn-wrapper") as download_btn_group:
+                download_btn = gr.DownloadButton(
+                    label="", 
+                    icon=str(Path(__file__).parent.parent / "core" / "download_white.svg"),
+                    visible=True, variant="primary", scale=0, elem_classes="download-btn"
+                )
         
         result_output = gr.HTML(value=self._empty_state())
         
         # Store for wire_events
         self._save_btn = save_btn
+        self._download_btn = download_btn
+        self._download_btn_group = download_btn_group
         
         inputs = [num_buckets, tolerance, max_per_bucket, manual_buckets, create_landscape, create_portrait, create_square,
                   min_res, max_res, unassigned_action, file_action, output_dir, result_output, analyze_btn, prune_btn, organize_btn]
@@ -882,41 +896,108 @@ class BucketingTool(BaseTool):
         def organize(*args):
             limit_val = args[-1] if limit_count is not None else None
             
+            # Setup Output Directory
+            # In Server Mode: Override with temp dir
+            # In Local Mode: Use user provided dir
+            temp_dir_obj = None
+            orig_output_dir = args[11]
+            args_list = list(args)
+            
+            if self._is_server_mode:
+                import tempfile
+                import os
+                temp_dir_obj = tempfile.TemporaryDirectory(dir=os.environ.get("GRADIO_TEMP_DIR"), prefix="bucketing_")
+                args_list[11] = temp_dir_obj.name
+                print(f"{Fore.CYAN}Server Mode: Organizing to temp dir {args_list[11]}{Style.RESET_ALL}")
+            
             run_dataset, count = _get_limited_dataset(limit_val)
             if run_dataset is None:
-                return self._empty_state()
+                return self._empty_state(), gr.update(visible=False), gr.update(visible=False)
+            
+            # Use the actual output dir being used (temp or user-defined)
+            effective_output_dir = args_list[11]
             
             print(f"")
             print(f"{CYAN}--- Running Bucketing Tool (Organize) on {count} images ---{RESET}")
-            print(f"  Output: {args[11]}")
-            print(f"  Action: {args[10]}")
+            print(f"  Output: {effective_output_dir}")
+            print(f"  Action: {args_list[10]}")
             print(f"")
             
-            result = self.apply_to_dataset(
-                run_dataset,
-                num_buckets=int(args[0]) if args[0] else 3,
-                tolerance=float(args[1]) if args[1] else 20,
-                max_per_bucket=int(args[2]) if args[2] else 0,
-                manual_buckets=args[3],
-                create_landscape=args[4],
-                create_portrait=args[5],
-                create_square=args[6],
-                min_resolution=int(args[7]) if args[7] else 0,
-                max_resolution=int(args[8]) if args[8] else 0,
-                unassigned_action=args[9],
-                file_action=args[10],
-                output_dir=args[11],
-                action="organize"
-            )
+            try:
+                result = self.apply_to_dataset(
+                    run_dataset,
+                    num_buckets=int(args_list[0]) if args_list[0] else 3,
+                    tolerance=float(args_list[1]) if args_list[1] else 20,
+                    max_per_bucket=int(args_list[2]) if args_list[2] else 0,
+                    manual_buckets=args_list[3],
+                    create_landscape=args_list[4],
+                    create_portrait=args_list[5],
+                    create_square=args_list[6],
+                    min_resolution=int(args_list[7]) if args_list[7] else 0,
+                    max_resolution=int(args_list[8]) if args_list[8] else 0,
+                    unassigned_action=args_list[9],
+                    file_action=args_list[10],
+                    output_dir=effective_output_dir,
+                    action="organize"
+                )
+                
+                _print_summary(result)
+                print(f"{CYAN}--- Bucketing Tool (Organize) Complete ---{RESET}")
+                print(f"")
+                
+                # Zip Creation (Available in both modes if output dir is valid)
+                dl_grp = gr.update(visible=False)
+                dl_btn = gr.update(visible=False)
+                
+                # Check if we should offer a zip:
+                # 1. If Server Mode: ALWAYS (since output is in temp)
+                # 2. If Local Mode: Only if output_dir was specified (not empty, though organize requires it anyway)
+                # But organize tool logic requires non-empty output_dir for run.
+                
+                if effective_output_dir:
+                    import shutil
+                    import os
+                    if os.path.exists(effective_output_dir) and os.listdir(effective_output_dir):
+                        from src.gui import file_loader
+                         # Use file_loader.create_zip? No, create_zip expects file list.
+                         # This is a folder structure. We stick to shutil.make_archive for now.
+                         # But we want to use temp dir for the zip file itself.
+                        import tempfile
+                        zip_export_dir = tempfile.gettempdir()
+                        import datetime
+                        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+                        zip_base = os.path.join(zip_export_dir, f"organized_buckets_{timestamp}")
+                        
+                        zip_path = shutil.make_archive(zip_base, 'zip', effective_output_dir)
+                        
+                        dl_grp = gr.update(visible=True)
+                        dl_btn = gr.update(
+                            value=zip_path,
+                            visible=True,
+                            interactive=True,
+                            variant="primary",
+                            icon=str(Path(__file__).parent.parent / "core" / "download_white.svg"),
+                            elem_classes="download-btn"
+                        )
+                
+                # Cleanup temp processing folder if we used one
+                if temp_dir_obj:
+                    temp_dir_obj.cleanup()
+
+                return result, dl_grp, dl_btn
             
-            _print_summary(result)
-            print(f"{CYAN}--- Bucketing Tool (Organize) Complete ---{RESET}")
-            print(f"")
-            return result
+            except Exception as e:
+                if temp_dir_obj:
+                    temp_dir_obj.cleanup()
+                raise e
         
         analyze_btn.click(fn=analyze, inputs=all_inputs, outputs=[result_output])
         prune_btn.click(fn=prune, inputs=all_inputs, outputs=[result_output])
-        organize_btn.click(fn=organize, inputs=all_inputs, outputs=[result_output])
+        
+        # Organize outputs include download button
+        download_btn = self._download_btn
+        download_btn_group = self._download_btn_group
+        organize_btn.click(fn=organize, inputs=all_inputs, outputs=[result_output, download_btn_group, download_btn])
         
         # Save settings handler
         def save_settings(*args):

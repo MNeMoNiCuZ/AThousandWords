@@ -1,0 +1,15 @@
+venv/
+__pycache__/
+*.pyc
+*.pyo
+.git/
+.gitignore
+input/
+user/
+*.md
+!README.md
+gui.bat
+setup.bat
+venv_activate.bat
+.env
+*.whl

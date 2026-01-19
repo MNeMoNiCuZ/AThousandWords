@@ -55,6 +55,7 @@ class CaptioningApp:
         # Force re-read user_config from disk on app creation
         self.config_mgr.user_config = self.config_mgr._load_yaml(self.config_mgr.user_config_path)
         
+        self.is_server_mode = False  # Set by main entry point
         self.registry = ModelRegistry()
         
         # Initialize state modules
@@ -368,7 +369,9 @@ class CaptioningApp:
         # Validate existance
         if not source_path.exists():
             gr.Warning(f"Folder not found: {source_path}")
-            return [], gr.update(visible=False)
+            # Return 5 values to match expected signature: 
+            # (gallery_data, file_obj_update, page_num, total_label, pagination_vis)
+            return [], gr.update(visible=False), 1, self.get_total_label(), self._get_pagination_vis()
             
         self.dataset = DataLoader.scan_directory(str(source_path.absolute()), recursive=recursive)
         

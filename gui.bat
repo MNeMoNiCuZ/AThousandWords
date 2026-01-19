@@ -1,34 +1,45 @@
 @echo off
-setlocal enabledelayedexpansion
+cd /d "%~dp0"
 
-:: Check if venv exists
-if not exist "venv\Scripts\activate.bat" (
-    echo [ERROR] Virtual environment not found!
+REM Check if venv exists
+if not exist "venv" (
     echo.
-    echo The venv folder does not exist or is not properly set up.
-    echo Please create a virtual environment first by running:
-    echo   python -m venv venv
+    echo ===============================================================================
+    echo  ERROR: Virtual environment 'venv' not found!
+    echo.
+    echo  Please run 'setup.bat' first to install the application.
+    echo ===============================================================================
     echo.
     pause
     exit /b 1
 )
 
-:: Activate venv
-call venv\Scripts\activate >nul 2>&1
+call venv\Scripts\activate.bat
 
-:: Run pre-launch validation script (silent on success)
+REM Run pre-launch validation script (silent on success)
 python src/core/validate_environment.py
-if not errorlevel 1 goto launch
+if errorlevel 1 (
+    echo.
+    echo ========================================
+    echo Validation warnings detected.
+    echo Continue anyway? (Press any key)
+    echo Or press Ctrl+C to abort and fix issues.
+    echo ========================================
+    pause >nul
+)
 
-:: Validation failed - show warning
 echo.
-echo ========================================
-echo Continue anyway? (Press any key)
-echo Or press Ctrl+C to abort and fix issues
-echo ========================================
-pause >nul
-if errorlevel 1 exit /b 1
+echo Launching A Thousand Words GUI...
+echo Usage: gui.bat [options]
+echo   --server       : Enable network access (0.0.0.0)
+echo   --enable-api   : Enable REST API endpoint
+echo.
 
-:launch
-:: Launch the application
-cmd /k "cd /d %~dp0 & call venv\Scripts\activate & python gui.py"
+python gui.py %*
+
+if %errorlevel% neq 0 (
+    echo.
+    echo Process exited with error code %errorlevel%.
+    pause
+)
+pause

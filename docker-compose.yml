@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  athousandwords:
+    build: .
+    image: athousandwords:latest
+    ports:
+      - "7860:7860"  # Gradio GUI
+      - "8000:8000"  # API (optional)
+    volumes:
+      - ./user:/app/user  # Persist user config and uploads
+      - ./input:/app/input  # Mount input directory
+      # - ./models:/app/models # Optional: mount models if stored within app
+    environment:
+      - GRADIO_SERVER_NAME=0.0.0.0
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    restart: unless-stopped
+    stdin_open: true # Equivalent to -i
+    tty: true        # Equivalent to -t

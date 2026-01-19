@@ -16,13 +16,14 @@ def get_system_ram_gb() -> int:
         return 32
 
 
-def create_settings_tab(app, cfg: dict, models_chk) -> dict:
+def create_settings_tab(app, cfg: dict, models_chk, is_server_mode=False) -> dict:
     """Create Settings tab components.
     
     Args:
         app: CaptioningApp instance
         cfg: Global settings config dict
         models_chk: Models checkbox group (to render in this tab)
+        is_server_mode: Whether to restrict fields for server mode
         
     Returns:
         dict of component references
@@ -64,8 +65,8 @@ def create_settings_tab(app, cfg: dict, models_chk) -> dict:
 
     with gr.Accordion("General Captioning Settings", open=True):
         with gr.Row():
-            out_dir = gr.Textbox(label="Output Folder", value=cfg['output_dir'], placeholder="Leave empty for same folder as input", info="Directory for captions. Leave empty to save alongside input images.")
-            out_fmt = gr.Textbox(label="Output Format", value=cfg['output_format'], info="File extension (e.g., txt, json, caption)")
+            out_dir = gr.Textbox(label="Output Folder", value=cfg['output_dir'], placeholder="Leave empty for same folder as input", info="Directory for captions. Leave empty to save alongside input images.", visible=not is_server_mode)
+            out_fmt = gr.Textbox(label="Output Format", value=cfg['output_format'], info="File extension (e.g., txt, json, caption)", visible=not is_server_mode)
             
             rec_cfg = feature_registry.get_feature("recursive").get_gui_config()
             g_recursive = gr.Checkbox(label=rec_cfg['label'], value=cfg['recursive'], info=rec_cfg['info'])

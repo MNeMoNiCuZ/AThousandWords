@@ -116,7 +116,7 @@ def analyze_input_paths(dataset):
     return common_root, mixed_sources, collisions
 
 
-def create_zip(file_paths: list) -> str:
+def create_zip(file_paths: list, base_name: str = "captions") -> str:
     """Create zip file, preserving relative structure if possible."""
     import zipfile
     import tempfile
@@ -129,14 +129,21 @@ def create_zip(file_paths: list) -> str:
     try:
         paths = [Path(p).absolute() for p in file_paths]
         common_root = Path(os.path.commonpath(paths))
+        if common_root.is_file():
+            common_root = common_root.parent
     except ValueError:
         common_root = None
         
     try:
-        export_dir = Path(tempfile.gettempdir())
-        
+        # Prioirty: GRADIO_TEMP_DIR -> System Temp
+        env_temp = os.environ.get("GRADIO_TEMP_DIR")
+        if env_temp and os.path.isdir(env_temp):
+            export_dir = Path(env_temp)
+        else:
+            export_dir = Path(tempfile.gettempdir())
+            
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        zip_name = f"captions_{timestamp}.zip"
+        zip_name = f"{base_name}_{timestamp}.zip"
         zip_path = export_dir / zip_name
         
         with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zf:
@@ -146,6 +153,13 @@ def create_zip(file_paths: list) -> str:
                     arcname = p.relative_to(common_root) if common_root else p.name
                     zf.write(p, arcname=arcname)
         
+        return str(zip_path.absolute())
+        
+        if not zipfile.is_zipfile(zip_path):
+             print(f"[ERROR] create_zip: Created zip file is reported invalid! {zip_path}", flush=True)
+        else:
+             print(f"[DEBUG] create_zip: Zip Integrity Check Passed.", flush=True)
+             
         return str(zip_path.absolute())
         
     except Exception as e:

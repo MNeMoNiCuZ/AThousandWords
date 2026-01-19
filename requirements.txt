@@ -1,5 +1,9 @@
 # --- Core Framework & Utilities ---
 gradio>=4.0.0
+fastapi
+uvicorn[standard]
+python-multipart
+
 pyyaml
 piexif
 pillow

@@ -96,7 +96,7 @@ class BaseTool(ABC):
         pass
     
     @abstractmethod
-    def create_gui(self, app) -> tuple:
+    def create_gui(self, app, is_server_mode=False) -> tuple:
         """
         Create Gradio UI components for this tool.
         
@@ -105,6 +105,7 @@ class BaseTool(ABC):
         
         Args:
             app: CaptioningApp instance for accessing dataset/config
+            is_server_mode (bool): If True, output path controls should be hidden/restricted
             
         Returns:
             tuple: (run_button, list_of_input_components)

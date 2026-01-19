@@ -59,6 +59,15 @@ def create_multi_model_tab(app):
         save_btn = gr.Button("Save Settings", variant="secondary", scale=0)
         gen_cmd_btn = gr.Button("Generate Command", variant="secondary", scale=0)
         run_btn = gr.Button("Run Captioning", variant="primary", scale=1)
+        
+        # Download button for server mode / batch results
+        from pathlib import Path
+        with gr.Column(visible=False, scale=0, min_width=80, elem_classes="download-btn-wrapper") as download_btn_group:
+            download_btn = gr.DownloadButton(
+                label="", 
+                icon=str(Path(__file__).parent.parent.parent.parent / "src" / "gui" / "core" / "download_white.svg"),
+                visible=True, variant="primary", scale=0, elem_classes="download-btn"
+            )
     
     # Command output
     cmd_output = gr.Textbox(
@@ -79,6 +88,8 @@ def create_multi_model_tab(app):
         "save_btn": save_btn,
         "gen_cmd_btn": gen_cmd_btn,
         "run_btn": run_btn,
+        "download_btn": download_btn,
+        "download_btn_group": download_btn_group,
         "cmd_output": cmd_output
     }
 
@@ -153,15 +164,20 @@ def wire_multi_model_events(app, components, gal, limit_count, multi_run_valid_s
         return True
     
     def start_processing(is_valid):
+        # Hide download button at start
         if not is_valid:
-            return gr.update(value="Run Captioning", interactive=True)
-        return gr.update(value="Processing...", interactive=False)
+            return gr.update(value="Run Captioning", interactive=True), gr.update(visible=False), gr.update(visible=False)
+        return gr.update(value="Processing...", interactive=False), gr.update(visible=False), gr.update(visible=False)
     
+
     def run_wrapper(*inputs):
         is_valid = inputs[-1]
         real_inputs = inputs[:-1]
         if not is_valid:
-            return gr.update()
+            # Return no-op updates matching signature: (gallery, run_btn, dl_grp, dl_btn)
+            return gr.update(), gr.update(), gr.update(visible=False), gr.update(visible=False)
+        
+        # Returns (gallery_data, run_btn_update, dl_group_update, dl_btn_update)
         return app.run_multi_model_inference(*real_inputs)
     
     run_inputs = checkbox_list + format_list + [limit_count, multi_run_valid_state]
@@ -173,14 +189,11 @@ def wire_multi_model_events(app, components, gal, limit_count, multi_run_valid_s
     ).then(
         fn=start_processing,
         inputs=[multi_run_valid_state],
-        outputs=[components["run_btn"]]
+        outputs=[components["run_btn"], components["download_btn_group"], components["download_btn"]]
     ).then(
         fn=run_wrapper,
         inputs=run_inputs,
-        outputs=[gal]
-    ).then(
-        fn=lambda: gr.update(value="Run Captioning", interactive=True),
-        outputs=[components["run_btn"]]
+        outputs=[gal, components["run_btn"], components["download_btn_group"], components["download_btn"]]
     )
 
 

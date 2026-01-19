@@ -47,7 +47,7 @@ logging.getLogger("accelerate.utils.modeling").setLevel(logging.WARNING)
 
 
 
-def create_ui(startup_message=None):
+def create_ui(startup_message=None, is_server_mode=False):
     """Create and return the Gradio Blocks interface."""
     app = CaptioningApp()
     
@@ -108,7 +108,7 @@ def create_ui(startup_message=None):
 
             # Tab 3: Tools
             with gr.Tab("Tools"):
-                tool_components = create_tools_tab(app)
+                tool_components = create_tools_tab(app, is_server_mode=is_server_mode)
 
 
             # Tab 3.5: Presets
@@ -118,7 +118,7 @@ def create_ui(startup_message=None):
             # Tab 4: Settings
             with gr.Tab("Settings"):
                 cfg = app.config_mgr.get_global_settings()
-                settings_components = create_settings_tab(app, cfg, models_chk)
+                settings_components = create_settings_tab(app, cfg, models_chk, is_server_mode=is_server_mode)
                 # Extract components for later event wiring
                 vram_inp = settings_components["vram"]
                 system_ram_inp = settings_components["system_ram"]
@@ -165,7 +165,7 @@ def create_ui(startup_message=None):
 
 
         # Shared Input Source, Gallery, and Viewer (reusable across tabs)
-        input_components = create_input_source(app)
+        input_components = create_input_source(app, is_server_mode=is_server_mode)
         gallery_components = create_gallery_section(app)
         viewer_components = create_viewer_section()
         

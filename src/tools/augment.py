@@ -387,8 +387,10 @@ class AugmentTool(BaseTool):
         
         return f"Generated {generated} augmented images to {output_dir}", generated_files
     
-    def create_gui(self, app) -> tuple:
+    def create_gui(self, app, is_server_mode=False) -> tuple:
         """Create the Augment tool UI."""
+        self._is_server_mode = is_server_mode
+        self._app = app
         
         gr.Markdown(self.config.description)
         
@@ -399,7 +401,8 @@ class AugmentTool(BaseTool):
                 target_count = gr.Number(label="Target Count", value=100, precision=0, minimum=1,
                                          info="Number of augmented images to generate")
                 output_dir = gr.Textbox(label="Output Directory", placeholder="output",
-                                        info="Leave empty to use input path or 'output'")
+                                        info="Leave empty to use input path or 'output'",
+                                        visible=not is_server_mode)
                 prefix = gr.Textbox(label="Prefix", placeholder="aug_", info="Added before filename")
                 suffix = gr.Textbox(label="Suffix", placeholder="_v1", info="Added after filename")
             
@@ -527,6 +530,8 @@ class AugmentTool(BaseTool):
         """Custom wire_events with button state management and download button."""
         import copy as copy_module
         from src.gui.inference import tool_start_processing, tool_finish_processing
+        import tempfile
+        import os
         
         tool_name = self.config.display_name
         
@@ -566,6 +571,13 @@ class AugmentTool(BaseTool):
                 except (ValueError, TypeError):
                     pass
             
+            # Server Mode Handling
+            temp_dir_obj = None
+            if self._is_server_mode:
+                temp_dir_obj = tempfile.TemporaryDirectory(dir=os.environ.get("GRADIO_TEMP_DIR"), prefix="augment_")
+                tool_args[1] = temp_dir_obj.name # Override output_dir
+                print(f"{Fore.CYAN}Server Mode: Generating to temp dir {tool_args[1]}{Style.RESET_ALL}")
+
             image_count = len(run_dataset.images)
             print(f"")
             print(f"{Fore.CYAN}--- Running {tool_name} Tool on {image_count} images ---{Style.RESET_ALL}")
@@ -574,16 +586,41 @@ class AugmentTool(BaseTool):
             app_input_path = app.current_input_path if not app.is_drag_and_drop else None
             tool_args.append(app_input_path)
             
-            result, generated_files = self.apply_to_dataset(run_dataset, *tool_args)
+            try:
+                result, generated_files = self.apply_to_dataset(run_dataset, *tool_args)
+                
+                print(f"{Fore.GREEN}Result: {result}{Style.RESET_ALL}")
+                print(f"{Fore.CYAN}--- {tool_name} Tool Complete ---{Style.RESET_ALL}")
+                print(f"")
+                
+                gr.Info(result)
+                
+                # Cleanup if we used a temp dir (tool_finish_processing creates zip from files, effectively copying them out of here)
+                # Wait, tool_finish_processing creates zip from paths. 
+                # If we cleanup temp_dir_obj immediately, files disappear.
+                # But tool_finish_processing runs synchronously here before returning.
+                # Actually, tool_finish_processing just returns updates. 
+                # It calls file_loader.create_zip internally.
+                # So we can cleanup afterwards.
+                
+                ui_updates = tool_finish_processing("Augment Dataset", generated_files, zip_prefix="augmented_images")
+                
+                if temp_dir_obj:
+                    # We should delay cleanup or ignore it?
+                    # The zip is created in tool_finish_processing.
+                    # So we can clean up now.
+                    # But checking implementation of tool_finish_processing:
+                    # it calls file_loader.create_zip(generated_files).
+                    # So zip is created NOW.
+                    temp_dir_obj.cleanup()
+                    
+                return ui_updates
             
-            print(f"{Fore.GREEN}Result: {result}{Style.RESET_ALL}")
-            print(f"{Fore.CYAN}--- {tool_name} Tool Complete ---{Style.RESET_ALL}")
-            print(f"")
-            
-            gr.Info(result)
-            
-            # Use reusable finish function
-            return tool_finish_processing("Augment Dataset", generated_files)
+            except Exception as e:
+                # Cleanup on error
+                if temp_dir_obj:
+                    temp_dir_obj.cleanup()
+                raise e
         
         def save_settings(*args):
             """Save tool settings to user config using existing pattern."""

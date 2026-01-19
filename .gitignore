@@ -215,3 +215,4 @@ __marimo__/
 venv_activate.bat
 *.whl
 /docs/GEMINI.md
+/temp

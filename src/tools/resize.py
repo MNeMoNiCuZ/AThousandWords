@@ -147,8 +147,10 @@ Images smaller than the target are NOT upscaled.
         result = f"Processed {len(dataset)} images. Resized/Saved: {count}, Skipped: {skipped}, Errors: {errors}"
         return result
     
-    def create_gui(self, app) -> tuple:
+    def create_gui(self, app, is_server_mode=False) -> tuple:
         """Create the Resize tool UI. Returns (run_button, inputs) for later event wiring."""
+        self._is_server_mode = is_server_mode
+        self._app = app
         
         gr.Markdown(self.config.description)
         
@@ -157,7 +159,8 @@ Images smaller than the target are NOT upscaled.
                 resize_out_dir = gr.Textbox(
                     label="Output Directory", 
                     placeholder="Optional. Leave empty to save in same folder.", 
-                    info="Path to save resized images."
+                    info="Path to save resized images.",
+                    visible=not is_server_mode
                 )
                 resize_pre = gr.Textbox(
                     label="Output Filename Prefix", 
@@ -183,9 +186,19 @@ Images smaller than the target are NOT upscaled.
         with gr.Row():
             save_btn = gr.Button("Save Settings", variant="secondary", scale=0)
             resize_run = gr.Button("Resize Images", variant="primary", scale=1, elem_id="resize_tool_btn")
+            
+            # Download button for server mode
+            with gr.Column(visible=False, scale=0, min_width=80, elem_classes="download-btn-wrapper") as download_btn_group:
+                download_btn = gr.DownloadButton(
+                    label="", 
+                    icon=str(Path(__file__).parent.parent / "core" / "download_white.svg"),
+                    visible=True, variant="primary", scale=0, elem_classes="download-btn"
+                )
         
         # Store for wire_events
         self._save_btn = save_btn
+        self._download_btn = download_btn
+        self._download_btn_group = download_btn_group
         
         # Return components for later event wiring
         inputs = [resize_px, resize_out_dir, resize_pre, resize_suf, resize_ext, resize_overwrite]
@@ -194,8 +207,85 @@ Images smaller than the target are NOT upscaled.
     def wire_events(self, app, run_button, inputs: list, gallery_output, limit_count=None) -> None:
         """Wire events with save settings support."""
         from src.gui.constants import filter_user_overrides
+        from src.gui.inference import tool_start_processing, tool_finish_processing
+        import tempfile
+        import shutil
+        import os
         
         save_btn = self._save_btn
+        download_btn = self._download_btn
+        download_btn_group = self._download_btn_group
+        
+        # Build all_inputs - append limit_count if provided
+        all_inputs = inputs.copy() if inputs else []
+        if limit_count is not None:
+            all_inputs.append(limit_count)
+            
+        def run_handler(*args):
+            # Extract arguments
+            max_dim = args[0]
+            output_dir = args[1]
+            prefix = args[2]
+            suffix = args[3]
+            extension = args[4]
+            overwrite = args[5]
+            
+            # Extract limit value if provided
+            limit_val = None
+            if limit_count is not None and len(args) > len(inputs):
+                limit_val = args[-1]
+            
+            if not app.dataset or not app.dataset.images:
+                gr.Warning("No images loaded. Please load a folder in Input Source first.")
+                return tool_finish_processing("Resize Images", [])
+
+            run_dataset = app.dataset
+            total_count = len(app.dataset.images)
+            
+            # Apply limit if set
+            if limit_val:
+                try:
+                    limit = int(limit_val)
+                    if limit > 0 and total_count > limit:
+                        import copy
+                        run_dataset = copy.copy(app.dataset)
+                        run_dataset.images = app.dataset.images[:limit]
+                        print(f"{Fore.YELLOW}Limiting to first {limit} images.{Style.RESET_ALL}")
+                except (ValueError, TypeError):
+                    pass
+            
+            # Server Mode Handling
+            temp_dir_obj = None
+            zip_path = None
+            generated_files = []
+            
+            if self._is_server_mode:
+                # Create unique temp dir for this run
+                temp_dir_obj = tempfile.TemporaryDirectory(dir=os.environ.get("GRADIO_TEMP_DIR"), prefix="resize_")
+                output_dir = temp_dir_obj.name
+                print(f"{Fore.CYAN}Server Mode: Resizing to temp dir {output_dir}{Style.RESET_ALL}")
+            
+            # Run resizing
+            result = self.apply_to_dataset(run_dataset, max_dim, output_dir, prefix, suffix, extension, overwrite)
+            
+            # Collect generated files (re-scans output dir if needed, or we rely on apply_to_dataset logs?)
+            # Validating what was created:
+            if output_dir:
+                 generated_files = [str(p) for p in Path(output_dir).glob("*") if p.is_file()]
+
+            if self._is_server_mode and generated_files:
+                # Use standard tool finish logic
+                from src.gui.inference import tool_finish_processing
+                
+                # Cleanup temp dir processing files, keep zip (which tool_finish_processing creates in GRADIO_TEMP_DIR)
+                ui_updates = tool_finish_processing("Resize Images", generated_files, zip_prefix="resized_images")
+                temp_dir_obj.cleanup()
+                
+                return ui_updates
+
+            gr.Info(result)
+            return tool_finish_processing("Resize Images", generated_files)
+
         
         def save_settings(*args):
             settings = {
@@ -236,8 +326,17 @@ Images smaller than the target are NOT upscaled.
         
         save_btn.click(save_settings, inputs=inputs, outputs=[])
         
-        # Call base class wire_events for run button
-        super().wire_events(app, run_button, inputs, gallery_output, limit_count)
+        # Wire run button with state management
+        run_button.click(
+            tool_start_processing,
+            inputs=[],
+            outputs=[run_button, download_btn_group, download_btn]
+        ).then(
+            run_handler,
+            inputs=all_inputs,
+            outputs=[run_button, download_btn_group, download_btn],
+            show_progress="hidden"
+        )
     
     def _resize_image_file(self, image_path: str, max_dimension: int, output_path: str = None, 
                            overwrite: bool = True) -> tuple:

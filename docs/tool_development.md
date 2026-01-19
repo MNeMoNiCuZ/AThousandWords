@@ -21,7 +21,7 @@ The tool system uses **automatic discovery**. Any `.py` file in `src/tools/` tha
 |------|---------|
 | `src/tools/base.py` | `BaseTool` abstract class and `ToolConfig` dataclass |
 | `src/tools/__init__.py` | Auto-discovery and registry logic |
-| `src/tools/template_tool.py` | **REFERENCE IMPLEMENTATION** - Copy this for new tools |
+| `docs/template_tool.py` | **REFERENCE IMPLEMENTATION** - Copy this for new tools |
 | `src/gui/tabs/tools.py` | Creates Tool tabs and wires events |
 
 > [!TIP]
@@ -414,28 +414,88 @@ app._get_gallery_data()  # Get current gallery display data
 
 ---
 
-## Download Button Pattern
+## Handling Server Mode & Downloads
 
-For tools that generate files needing download (drag-and-drop sources):
+When the app runs in **Server Mode** (`--server`), users cannot access the server's filesystem directly. Tools must:
+1. Hide unrestricted directory inputs.
+2. Generate outputs to a temporary directory.
+3. Zip the results and provide a download button.
+
+### 1. Hide Directory Inputs
+
+Pass `is_server_mode` to `create_gui`:
 
 ```python
-from src.gui import file_loader
-
-def apply_to_dataset(self, dataset, output_dir, ...):
-    generated_files = []
+def create_gui(self, app, is_server_mode=False) -> tuple:
+    self._is_server_mode = is_server_mode
     
-    for img_obj in dataset.images:
-        # Generate output file
-        out_path = self._process_image(img_obj, output_dir)
-        generated_files.append(str(out_path))
+    # ...
     
-    # Return file list for potential zipping
-    return f"Generated {len(generated_files)} files", generated_files
+    output_dir = gr.Textbox(
+        label="Output Directory", 
+        visible=not is_server_mode  # Hide in server mode
+    )
+    
+    # Add Download Button (initially hidden)
+    with gr.Column(visible=False, scale=0, min_width=80, elem_classes="download-btn-wrapper") as download_btn_group:
+        download_btn = gr.DownloadButton(
+            label="", 
+            icon=str(Path(__file__).parent.parent / "core" / "download_white.svg"),
+            visible=True, variant="primary", scale=0, elem_classes="download-btn"
+        )
+        
+    self._download_btn = download_btn
+    self._download_btn_group = download_btn_group
 ```
 
-The base system handles zip creation automatically when needed.
+### 2. Wire Events for Server Support
 
----
+Use the reusable `tool_start_processing` and `tool_finish_processing` helpers.
+
+```python
+def wire_events(self, app, run_button, inputs, gallery_output, limit_count=None):
+    from src.gui.inference import tool_start_processing, tool_finish_processing
+    import tempfile
+    import os
+    
+    def run_handler(*args):
+        args_list = list(args)
+        
+        # Handle Server Mode: Redirect output to temp dir
+        temp_dir_obj = None
+        if self._is_server_mode:
+            temp_dir_obj = tempfile.TemporaryDirectory(dir=os.environ.get("GRADIO_TEMP_DIR"), prefix="tool_")
+            args_list[2] = temp_dir_obj.name # Assuming args[2] is output_dir
+        
+        # Run Tool
+        msg, generated_files = self.apply_to_dataset(app.dataset, *args_list)
+        gr.Info(msg)
+        
+        # Finish & Update UI
+        # zip_prefix creates "my_tool_YYYYMMDD_HHMMSS.zip"
+        ui_updates = tool_finish_processing(
+            "Run Tool", 
+            generated_files, 
+            zip_prefix="my_tool"
+        )
+        
+        if temp_dir_obj:
+            temp_dir_obj.cleanup()
+            
+        return ui_updates
+
+    run_button.click(
+        tool_start_processing, 
+        inputs=[], 
+        outputs=[run_button, self._download_btn_group, self._download_btn]
+    ).then(
+        run_handler,
+        inputs=inputs, 
+        outputs=[run_button, self._download_btn_group, self._download_btn]
+    )
+```
+
+See `src/tools/template_tool.py` for a complete, copy-pasteable implementation.
 
 ## Examples
 

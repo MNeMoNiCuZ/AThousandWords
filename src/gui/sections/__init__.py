@@ -3,12 +3,13 @@
 import gradio as gr
 
 
-def create_input_source(app):
+def create_input_source(app, is_server_mode=False):
     """
     Create the Input Source accordion with drag-drop, path input, and controls.
     
     Args:
         app: CaptioningApp instance
+        is_server_mode (bool): If True, hide server-side path inputs
         
     Returns:
         dict: Component references
@@ -23,7 +24,7 @@ def create_input_source(app):
                     height=130
                 )
 
-            with gr.Column(scale=1):
+            with gr.Column(scale=1, visible=not is_server_mode):
                 input_path_text = gr.Textbox(
                     label="Input Folder Path", 
                     placeholder="C:/Path/To/Images", 
@@ -36,7 +37,8 @@ def create_input_source(app):
                 load_source_btn = gr.Button(
                     "Load Images From Input", 
                     variant="primary", 
-                    size="lg"
+                    size="lg",
+                    visible=not is_server_mode
                 )
                 with gr.Row():
                     limit_count = gr.Textbox(

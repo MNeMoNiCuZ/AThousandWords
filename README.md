@@ -70,7 +70,18 @@ A powerful, customizable, and user-friendly batch captioning tool for VLM (Visio
    ```
    or
    ```bash
+   ```bash
    py gui.py
+   ```
+
+7. **Server Mode**:
+   To allow access from other computers on your network (and enable file zipping/downloads):
+   ```bash
+   gui.bat --server
+   ```
+   or
+   ```bash
+   py gui.py --server
    ```
 
 ---

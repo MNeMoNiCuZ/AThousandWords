@@ -8,6 +8,7 @@ Implements BaseTool for auto-discovery and self-contained GUI.
 import os
 import re
 import logging
+from pathlib import Path
 import gradio as gr
 import piexif
 from PIL import Image
@@ -174,8 +175,10 @@ class MetadataTool(BaseTool):
         result = f"Processed {len(dataset)} images. Found metadata for {count}. Saved {saved_count} captions."
         return result
     
-    def create_gui(self, app) -> tuple:
+    def create_gui(self, app, is_server_mode=False) -> tuple:
         """Create the Metadata tool UI. Returns (run_button, inputs) for later event wiring."""
+        self._is_server_mode = is_server_mode
+        self._app = app
         
         gr.Markdown(self.config.description)
         
@@ -190,7 +193,8 @@ class MetadataTool(BaseTool):
                 meta_out_dir = gr.Textbox(
                     label="Output Directory", 
                     placeholder="Optional. Leave empty to save in same folder.", 
-                    info="Path to save text files."
+                    info="Path to save text files.",
+                    visible=not is_server_mode
                 )
                 meta_ext = gr.Textbox(
                     label="Output Extension", 
@@ -215,9 +219,19 @@ class MetadataTool(BaseTool):
         with gr.Row():
             save_btn = gr.Button("Save Settings", variant="secondary", scale=0)
             meta_run = gr.Button("Extract Metadata", variant="primary", scale=1, elem_id="metadata_tool_btn")
+            
+            # Download button for server mode
+            with gr.Column(visible=False, scale=0, min_width=80, elem_classes="download-btn-wrapper") as download_btn_group:
+                download_btn = gr.DownloadButton(
+                    label="", 
+                    icon=str(Path(__file__).parent.parent / "core" / "download_white.svg"),
+                    visible=True, variant="primary", scale=0, elem_classes="download-btn"
+                )
         
         # Store for wire_events
         self._save_btn = save_btn
+        self._download_btn = download_btn
+        self._download_btn_group = download_btn_group
         
         # Return components for later event wiring
         inputs = [meta_src, meta_upd, meta_pre, meta_suf, meta_clean, meta_collapse, meta_norm, meta_out_dir, meta_ext]
@@ -226,9 +240,82 @@ class MetadataTool(BaseTool):
     def wire_events(self, app, run_button, inputs: list, gallery_output, limit_count=None) -> None:
         """Wire events with save settings support."""
         from src.gui.constants import filter_user_overrides
+        from src.gui.inference import tool_start_processing, tool_finish_processing
+        import tempfile
+        import os
+        from pathlib import Path
         
         save_btn = self._save_btn
+        download_btn = self._download_btn
+        download_btn_group = self._download_btn_group
         
+        # Build all_inputs - append limit_count if provided
+        all_inputs = inputs.copy() if inputs else []
+        if limit_count is not None:
+            all_inputs.append(limit_count)
+            
+        def run_handler(*args):
+            # Extract args normally
+            source_type = args[0]
+            update_caption = args[1]
+            prefix = args[2]
+            suffix = args[3]
+            clean = args[4]
+            collapse = args[5]
+            normalize = args[6]
+            output_dir = args[7]
+            extension = args[8]
+            
+            limit_val = None
+            if limit_count is not None and len(args) > len(inputs):
+                limit_val = args[-1]
+            
+            if not app.dataset or not app.dataset.images:
+                gr.Warning("No images loaded.")
+                return tool_finish_processing("Extract Metadata", [])
+            
+            run_dataset = app.dataset
+            total_count = len(app.dataset.images)
+            
+            if limit_val:
+                try:
+                    limit = int(limit_val)
+                    if limit > 0 and total_count > limit:
+                        import copy
+                        run_dataset = copy.copy(app.dataset)
+                        run_dataset.images = app.dataset.images[:limit]
+                        print(f"{Fore.YELLOW}Limiting to first {limit} images.{Style.RESET_ALL}")
+                except (ValueError, TypeError):
+                    pass
+            
+            # Server Mode Config
+            temp_dir_obj = None
+            generated_files = []
+            
+            if self._is_server_mode:
+                temp_dir_obj = tempfile.TemporaryDirectory(dir=os.environ.get("GRADIO_TEMP_DIR"), prefix="metadata_")
+                output_dir = temp_dir_obj.name
+                print(f"{Fore.CYAN}Server Mode: Saving captions to temp dir {output_dir}{Style.RESET_ALL}")
+            
+            result = self.apply_to_dataset(
+                run_dataset, source_type, update_caption, 
+                prefix, suffix, clean, collapse, normalize, 
+                output_dir, extension
+            )
+            
+            # Scan for generated files if we have an output dir (which mandates save_caption)
+            if output_dir:
+                 generated_files = [str(p) for p in Path(output_dir).rglob("*") if p.is_file()]
+
+            gr.Info(result)
+            
+            ui_updates = tool_finish_processing("Extract Metadata", generated_files, zip_prefix="extracted_metadata")
+            
+            if temp_dir_obj:
+               temp_dir_obj.cleanup()
+               
+            return ui_updates
+
         def save_settings(*args):
             settings = {
                 "source_type": args[0],
@@ -271,8 +358,17 @@ class MetadataTool(BaseTool):
         
         save_btn.click(save_settings, inputs=inputs, outputs=[])
         
-        # Call base class wire_events for run button
-        super().wire_events(app, run_button, inputs, gallery_output, limit_count)
+        # Wire run button
+        run_button.click(
+            tool_start_processing,
+            inputs=[],
+            outputs=[run_button, download_btn_group, download_btn]
+        ).then(
+            run_handler,
+            inputs=all_inputs,
+            outputs=[run_button, download_btn_group, download_btn],
+            show_progress="hidden"
+        )
     
     def _parse_png_parameters(self, metadata: Dict[str, Any]) -> Dict[str, Any]:
         """Parse PNG parameters string into structured data."""

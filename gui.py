@@ -50,10 +50,67 @@ try:
 except ImportError:
     pass
 
+import argparse
+import threading
+import uvicorn
+import shutil
+import time
+import tempfile
+from pathlib import Path
+
+# ... (existing imports) ...
 from src.gui import create_ui
 from src.gui.styles import CSS
 from src.core.config import ConfigManager
 import src.core.hardware as hardware
+import src.api.server as api_server  # Modified import path
+
+
+# Set Gradio Temp Directory to System Temp -> gradio
+PROJECT_ROOT = Path(__file__).parent.absolute()
+TEMP_ROOT = Path(tempfile.gettempdir())
+GRADIO_TEMP_ROOT = TEMP_ROOT / "gradio"
+os.environ["GRADIO_TEMP_DIR"] = str(GRADIO_TEMP_ROOT)
+
+def cleanup_temp_files():
+    """Clean up temporary files from previous sessions."""
+    
+    # 1. Clean up System Temp -> Gradio
+    if GRADIO_TEMP_ROOT.exists():
+        try:
+            # Only clean up files older than 1 hour to avoid breaking running instances
+            cutoff_time = time.time() - 3600
+            count = 0
+            for item in GRADIO_TEMP_ROOT.iterdir():
+                try:
+                    # Check age
+                    if item.stat().st_mtime < cutoff_time:
+                        if item.is_dir():
+                            shutil.rmtree(item, ignore_errors=True)
+                        else:
+                            item.unlink(missing_ok=True)
+                        count += 1
+                except Exception:
+                    pass # Skip locked files
+            
+            if count > 0:
+                print(f"✓ Cleaned up {count} old Gradio temporary files")
+        except Exception as e:
+            print(f"⚠ Warning: Could not clean temp files: {e}")
+
+    # 3. Clean up API temp files (in system temp)
+    api_temp = TEMP_ROOT / "athousandwords_api"
+    if api_temp.exists():
+        try:
+            shutil.rmtree(api_temp, ignore_errors=True)
+            print("✓ Cleaned up API temporary files")
+        except Exception as e:
+             print(f"⚠ Warning: Could not clean API temp files: {e}")
+
+def run_api_server(host, port):
+    """Run the API server in a separate thread."""
+    print(f"Starting API Server at http://{host}:{port}")
+    uvicorn.run(api_server.app, host=host, port=port, log_level="warning")
 
 def setup_vram_config():
     """
@@ -95,7 +152,7 @@ def setup_vram_config():
     if vram_gb:
         print(f"✓ Automatically detected {vram_gb} GB GPU VRAM.\n")
     else:
-        print("⚠️  Could not automatically detect GPU VRAM.")
+        print("⚠  Could not automatically detect GPU VRAM.")
         print("Please enter your GPU VRAM in GB.")
         print("Press ENTER to use default (8 GB).")
         
@@ -121,7 +178,7 @@ def setup_vram_config():
     if ram_gb:
         print(f"✓ Automatically detected {ram_gb} GB System RAM.\n")
     else:
-        print("⚠️  Could not automatically detect System RAM.")
+        print("⚠  Could not automatically detect System RAM.")
         print("Please enter your System RAM in GB.")
         print("Press ENTER to use default (16 GB).")
         
@@ -153,8 +210,22 @@ def setup_vram_config():
 
 
 if __name__ == "__main__":
+    # Parse CLI Arguments
+    parser = argparse.ArgumentParser(description="A Thousand Words GUI Launcher")
+    parser.add_argument("--server", action="store_true", help="Run in server mode (access from network)")
+    parser.add_argument("--port", type=int, default=7860, help="Gradio server port (default: 7860)")
+    parser.add_argument("--enable-api", action="store_true", help="Enable REST API endpoint")
+    parser.add_argument("--api-port", type=int, default=8000, help="API server port (default: 8000)")
+    args = parser.parse_args()
+
+    # 1. Cleanup
+    try:
+        cleanup_temp_files()
+    except Exception as e:
+        print(f"Cleanup failed: {e}")
+
+    # 2. Setup Config
     startup_msg = setup_vram_config()
-    
     
     # Debug: Print system RAM detection (only on first boot/setup)
     if startup_msg:
@@ -179,5 +250,25 @@ if __name__ == "__main__":
         except ImportError:
             pass
     
-    ui, theme_js = create_ui(startup_message=startup_msg)
-    ui.launch(css=CSS, js=theme_js)
+    # 3. Start API Server (Background)
+    server_name = "0.0.0.0" if args.server else "127.0.0.1"
+    
+    if args.enable_api:
+        api_thread = threading.Thread(
+            target=run_api_server,
+            args=(server_name, args.api_port),
+            daemon=True
+        )
+        api_thread.start()
+
+    # 4. Launch Gradio
+    ui, theme_js = create_ui(startup_message=startup_msg, is_server_mode=args.server)
+    
+    print(f"Launching GUI on {server_name}:{args.port}")
+    ui.launch(
+        server_name=server_name,
+        server_port=args.port,
+        css=CSS, 
+        js=theme_js,
+        prevent_thread_lock=False # Run blocking main thread
+    )

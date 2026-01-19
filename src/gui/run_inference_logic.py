@@ -26,7 +26,7 @@ def run_inference(app, mod, args):
     
     if collisions and not common_root:
         gr.Warning(f"Filename collisions detected: {collisions[:3]}. Cannot save safely to single output.")
-        return app._get_gallery_data(), gr.update(visible=False), {}
+        return app._get_gallery_data(), gr.update(visible=False), {}, []
     
     if mixed_sources:
         msg = "⚠️ Warning: Inputs are from different drives/locations. Output files will be flattened into the output folder."
@@ -43,7 +43,7 @@ def run_inference(app, mod, args):
     
     if not app.dataset or not app.dataset.images:
         gr.Warning("No images found. Please load a folder or add images to the 'Input Source' before running.")
-        return app._get_gallery_data(), gr.update(visible=False), {}
+        return app._get_gallery_data(), gr.update(visible=False), {}, []
 
     try:
         limit_count = args.get('limit_count', 0)
@@ -63,14 +63,14 @@ def run_inference(app, mod, args):
         if isinstance(generated_files, list) and generated_files:
             zip_path = app.create_zip(generated_files)
             if zip_path:
-                return app._get_gallery_data(), gr.update(visible=True, value=zip_path), stats
+                return app._get_gallery_data(), gr.update(visible=True, value=zip_path), stats, generated_files
         
-        return app._get_gallery_data(), gr.update(visible=False), stats
+        return app._get_gallery_data(), gr.update(visible=False), stats, generated_files
         
     except RuntimeError as e:
         if "out of memory" in str(e).lower() or "vram" in str(e).lower():
             gr.Warning("🔴 CUDA OUT OF MEMORY - Reduce batch size, resize images in general settings, use another model, or close other GPU intensive processes to free up memory")
-            return app._get_gallery_data(), gr.update(visible=False), {}
+            return app._get_gallery_data(), gr.update(visible=False), {}, []
         else:
             import traceback
             traceback.print_exc()
