@@ -9,18 +9,22 @@ import importlib.util
 
 def check_pytorch():
     """Check if PyTorch is installed."""
+    print('Checking PyTorch installation...', end=' ', flush=True)
     pytorch_installed = importlib.util.find_spec('torch') is not None
     if pytorch_installed:
+        print('OK', flush=True)
         return True
     else:
-        print('[WARNING] PyTorch is not installed!')
-        print('          Please install PyTorch manually for your system.')
-        print('          Visit: https://pytorch.org/get-started/locally/')
+        print('MISSING', flush=True)
+        print('[WARNING] PyTorch is not installed!', flush=True)
+        print('          Please install PyTorch manually for your system.', flush=True)
+        print('          Visit: https://pytorch.org/get-started/locally/', flush=True)
         return False
 
 
 def check_requirements():
     """Check if requirements.txt packages are installed."""
+    print('Checking requirements.txt...', end=' ', flush=True)
     # Get the project root (two levels up from src/core)
     script_dir = os.path.dirname(os.path.abspath(__file__))
     src_dir = os.path.dirname(script_dir)
@@ -31,7 +35,8 @@ def check_requirements():
         with open(requirements_path, 'r', encoding='utf-8') as f:
             lines = f.readlines()
     except FileNotFoundError:
-        print('[WARNING] requirements.txt not found!')
+        print('ERROR', flush=True)
+        print('[WARNING] requirements.txt not found!', flush=True)
         return False
     
     # Map pip package names to their import names when they differ
@@ -63,15 +68,17 @@ def check_requirements():
             missing_packages.append(pkg)
     
     if not missing_packages:
+        print('OK', flush=True)
         return True
     else:
-        print('[WARNING] Missing packages from requirements.txt:')
+        print('WARNING', flush=True)
+        print('[WARNING] Missing packages from requirements.txt:', flush=True)
         for pkg in missing_packages[:10]:
-            print(f'          - {pkg}')
+            print(f'          - {pkg}', flush=True)
         if len(missing_packages) > 10:
-            print(f'          ... and {len(missing_packages) - 10} more')
-        print('')
-        print('          Run: pip install -r requirements.txt')
+            print(f'          ... and {len(missing_packages) - 10} more', flush=True)
+        print('', flush=True)
+        print('          Run: pip install -r requirements.txt', flush=True)
         return False
 
 
@@ -85,9 +92,9 @@ def main():
         sys.exit(0)
     else:
         # Print separator and warning only on failure
-        print('')
-        print('[WARNING] Some checks failed. The application may not work properly.')
-        sys.exit(2)
+        print('', flush=True)
+        print('[WARNING] Some checks failed. The application may not work properly.', flush=True)
+        sys.exit(1)
 
 
 if __name__ == '__main__':

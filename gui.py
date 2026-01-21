@@ -262,6 +262,21 @@ if __name__ == "__main__":
         api_thread.start()
 
     # 4. Launch Gradio
+    # Collect all existing drive roots (Windows) or root (Linux) as allowed paths
+    allowed_paths = []
+    if os.name == 'nt':
+        import string
+        from ctypes import windll
+        
+        # Get logical drives bitmask
+        drives = windll.kernel32.GetLogicalDrives()
+        for letter in string.ascii_uppercase:
+            if drives & 1:
+                allowed_paths.append(f"{letter}:\\")
+            drives >>= 1
+    else:
+        allowed_paths.append("/")
+
     ui, theme_js = create_ui(startup_message=startup_msg, is_server_mode=args.server)
     
     print(f"Launching GUI on {server_name}:{args.port}")
@@ -270,5 +285,6 @@ if __name__ == "__main__":
         server_port=args.port,
         css=CSS, 
         js=theme_js,
+        allowed_paths=allowed_paths,
         prevent_thread_lock=False # Run blocking main thread
     )

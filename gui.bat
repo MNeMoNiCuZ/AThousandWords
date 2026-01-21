@@ -16,17 +16,20 @@ if not exist "venv" (
 
 call venv\Scripts\activate.bat
 
-REM Run pre-launch validation script (silent on success)
-python src/core/validate_environment.py
-if errorlevel 1 (
-    echo.
-    echo ========================================
-    echo Validation warnings detected.
-    echo Continue anyway? (Press any key)
-    echo Or press Ctrl+C to abort and fix issues.
-    echo ========================================
-    pause >nul
-)
+REM Run pre-launch validation script (force unbuffered output)
+python -u src/core/validate_environment.py
+set "VAL_EXIT_CODE=%ERRORLEVEL%"
+if "%VAL_EXIT_CODE%"=="0" goto launch
+
+echo.
+echo ========================================
+echo Validation warnings detected (Exit Code: %VAL_EXIT_CODE%)
+echo Continue anyway? (Press any key)
+echo Or press Ctrl+C to abort and fix issues.
+echo ========================================
+pause >nul
+
+:launch
 
 echo.
 echo Launching A Thousand Words GUI...
