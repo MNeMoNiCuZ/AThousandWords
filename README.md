@@ -70,7 +70,6 @@ A powerful, customizable, and user-friendly batch captioning tool for VLM (Visio
    ```
    or
    ```bash
-   ```bash
    py gui.py
    ```
 
