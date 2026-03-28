@@ -55,7 +55,7 @@ prompt_presets:
 vram_table:
   20: 1
   24: 5
-  32: 20
+  32: 10
 
 # Feature layout
 feature_rows:
