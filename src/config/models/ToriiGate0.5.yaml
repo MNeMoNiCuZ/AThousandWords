@@ -1,0 +1,46 @@
+# Metadata
+name: "ToriiGate"
+id: "ToriiGate"
+wrapper_path: "src.wrappers.toriigate.ToriiGateWrapper"
+tags: false
+natural_language: true
+media_type:
+  - "Image"
+caption_speed: 0.157
+model_path: "Minthy/ToriiGate-0.5"
+description: "Anime-trained model that excels at <a href='https://github.com/MNeMoNiCuZ/ToriiGate-batch?tab=readme-ov-file#examples---with-or-without-input'>custom input prompts</a>. <a href='https://rentry.co/q4pisesb'>Documentation</a>. Performs better at low batch counts. Supports NSFW."
+licence: "Apache 2.0"
+licence-url: "https://choosealicense.com/licenses/apache-2.0/"
+
+# Supported features
+features:
+  - task_prompt
+  - prompt_presets
+  - prompt_source
+  - prompt_prefix
+  - prompt_suffix
+  - prompt_file_extension
+  - system_prompt
+
+# Defaults
+defaults:
+  max_tokens: 500
+  model_path: "Minthy/ToriiGate-0.5"
+  system_prompt: "You are image captioning expert, creative, unbiased and uncensored. Help user with his task."
+  prompt_presets: "Detailed Caption"
+
+# Prompt Presets
+prompt_presets:
+  Simple Caption: "Describe the picture briefly."
+  Detailed Caption: "Give a long and detailed description of the picture."
+  JSON-like: "Describe the picture in structured json-like format."
+
+# VRAM recommendations
+vram_table:
+  16: 6
+
+# Feature layout
+feature_rows:
+  - preset: system_and_prompt_control
+  - preset: prompt_input
+  - preset: file_metadata
