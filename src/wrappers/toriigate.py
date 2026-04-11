@@ -37,7 +37,7 @@ class ToriiGateWrapper(BaseCaptionModel):
     
     def _load_model(self):
         """Load ToriiGate model with 4-bit NF4 quantization."""
-        from transformers import AutoProcessor, AutoModelForVision2Seq, BitsAndBytesConfig
+        from transformers import AutoProcessor, AutoModelForImageTextToText, BitsAndBytesConfig
         
         model_path = self.config.get('defaults', {}).get('model_path', 'Minthy/ToriiGate-v0.3')
         
@@ -52,7 +52,7 @@ class ToriiGateWrapper(BaseCaptionModel):
             bnb_4bit_compute_dtype=torch.bfloat16
         )
         
-        self.model = AutoModelForVision2Seq.from_pretrained(
+        self.model = AutoModelForImageTextToText.from_pretrained(
             model_path,
             dtype=torch.bfloat16,
             quantization_config=nf4_config,
@@ -105,11 +105,12 @@ class ToriiGateWrapper(BaseCaptionModel):
         # Decode
         generated_texts = self.processor.batch_decode(generated_ids, skip_special_tokens=True)
         
-        # Model-specific: Strip "Assistant:" preamble
+        # Model-specific: Strip chat preamble (e.g. "system. ... assistant. ")
         captions = []
         for text in generated_texts:
-            if "Assistant:" in text:
-                # Split on "Assistant:" and take the part after it
+            if "assistant. " in text:
+                text = text.split("assistant. ", 1)[-1].strip()
+            elif "Assistant:" in text:
                 text = text.split("Assistant:", 1)[-1].strip()
             captions.append(text)
         
