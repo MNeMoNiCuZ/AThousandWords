@@ -41,7 +41,7 @@ from transformers.utils import (
     logging,
     replace_return_docstrings,
     is_flash_attn_2_available,
-    is_flash_attn_greater_or_equal_2_10,
+    is_flash_attn_greater_or_equal,
 )
 from .configuration_florence2 import Florence2Config 
 from .configuration_florence2 import Florence2LanguageConfig
@@ -61,6 +61,9 @@ from transformers.modeling_outputs import (
     Seq2SeqLMOutput,
     Seq2SeqModelOutput,
 )
+
+def is_flash_attn_greater_or_equal_2_10():
+    return is_flash_attn_greater_or_equal("2.10")
 
 
 if is_flash_attn_2_available():

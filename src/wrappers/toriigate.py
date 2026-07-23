@@ -37,7 +37,11 @@ class ToriiGateWrapper(BaseCaptionModel):
     
     def _load_model(self):
         """Load ToriiGate model with 4-bit NF4 quantization."""
-        from transformers import AutoProcessor, AutoModelForVision2Seq, BitsAndBytesConfig
+        from transformers import AutoProcessor, BitsAndBytesConfig
+        try:
+            from transformers import AutoModelForVision2Seq as VisionModelClass
+        except ImportError:
+            from transformers import AutoModelForImageTextToText as VisionModelClass
         
         model_path = self.config.get('defaults', {}).get('model_path', 'Minthy/ToriiGate-v0.3')
         
@@ -52,7 +56,7 @@ class ToriiGateWrapper(BaseCaptionModel):
             bnb_4bit_compute_dtype=torch.bfloat16
         )
         
-        self.model = AutoModelForVision2Seq.from_pretrained(
+        self.model = VisionModelClass.from_pretrained(
             model_path,
             dtype=torch.bfloat16,
             quantization_config=nf4_config,

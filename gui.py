@@ -51,12 +51,17 @@ except ImportError:
     pass
 
 import argparse
-import threading
+import contextlib
+import io
 import uvicorn
 import shutil
 import time
 import tempfile
 from pathlib import Path
+from typing import List, Optional
+
+import gradio as gr
+from fastapi import BackgroundTasks, FastAPI, File, Form, UploadFile
 
 # ... (existing imports) ...
 from src.gui import create_ui
@@ -64,6 +69,29 @@ from src.gui.styles import CSS
 from src.core.config import ConfigManager
 import src.core.hardware as hardware
 import src.api.server as api_server  # Modified import path
+
+try:
+    from colorama import Fore, Style, init as colorama_init
+except Exception:  # pragma: no cover - optional dependency
+    Fore = Style = None
+
+    def colorama_init(*_args, **_kwargs):
+        return None
+
+
+colorama_init(autoreset=True)
+
+
+def _c(text, color):
+    if Fore is None or Style is None:
+        return str(text)
+    return f"{color}{text}{Style.RESET_ALL}"
+
+
+def _print_group(title, rows):
+    print(_c(f"\n[{title}]", Fore.CYAN if Fore else ""))
+    for row in list(rows or []):
+        print(_c(f"  - {row}", Fore.GREEN if Fore else ""))
 
 
 # Set Gradio Temp Directory to System Temp -> gradio
@@ -94,23 +122,71 @@ def cleanup_temp_files():
                     pass # Skip locked files
             
             if count > 0:
-                print(f"✓ Cleaned up {count} old Gradio temporary files")
+                print(f"Cleaned up {count} old Gradio temporary files")
         except Exception as e:
-            print(f"⚠ Warning: Could not clean temp files: {e}")
+            print(f"Warning: Could not clean temp files: {e}")
 
     # 3. Clean up API temp files (in system temp)
     api_temp = TEMP_ROOT / "athousandwords_api"
     if api_temp.exists():
         try:
             shutil.rmtree(api_temp, ignore_errors=True)
-            print("✓ Cleaned up API temporary files")
+            print("Cleaned up API temporary files")
         except Exception as e:
-             print(f"⚠ Warning: Could not clean API temp files: {e}")
+             print(f"Warning: Could not clean API temp files: {e}")
 
-def run_api_server(host, port):
-    """Run the API server in a separate thread."""
-    print(f"Starting API Server at http://{host}:{port}")
-    uvicorn.run(api_server.app, host=host, port=port, log_level="warning")
+def _canonical_client_host(bind_host: str) -> str:
+    host = str(bind_host or "").strip().lower()
+    if host in {"0.0.0.0", "::"}:
+        return "127.0.0.1"
+    return host or "127.0.0.1"
+
+
+def build_unified_app(demo) -> FastAPI:
+    """Build one FastAPI app that serves both GUI and API handshake routes on one port."""
+    app = FastAPI(title="A Thousand Words Unified Server")
+
+    @app.get("/api/health")
+    @app.get("/health")
+    async def _health_proxy():
+        return await api_server.health_check()
+
+    @app.get("/api/models")
+    @app.get("/models")
+    async def _models_proxy():
+        return await api_server.list_models()
+
+    @app.post("/api/caption")
+    @app.post("/caption")
+    async def _caption_proxy(
+        background_tasks: BackgroundTasks,
+        files: List[UploadFile] = File(...),
+        model: str = Form(...),
+        batch_size: Optional[int] = Form(None),
+        task_prompt: Optional[str] = Form(None),
+        max_tokens: Optional[int] = Form(None),
+        temperature: Optional[float] = Form(None),
+        recursive: bool = Form(False),
+    ):
+        return await api_server.caption_images(
+            background_tasks=background_tasks,
+            files=files,
+            model=model,
+            batch_size=batch_size,
+            task_prompt=task_prompt,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            recursive=recursive,
+        )
+
+    @app.get("/api/caption")
+    @app.get("/caption")
+    async def _caption_info():
+        return {"ok": True, "endpoint": "/api/caption", "method": "POST"}
+
+    with contextlib.redirect_stdout(io.StringIO()):
+        mounted = gr.mount_gradio_app(app, demo, path="/")
+    return mounted
 
 def setup_vram_config():
     """
@@ -213,9 +289,8 @@ if __name__ == "__main__":
     # Parse CLI Arguments
     parser = argparse.ArgumentParser(description="A Thousand Words GUI Launcher")
     parser.add_argument("--server", action="store_true", help="Run in server mode (access from network)")
-    parser.add_argument("--port", type=int, default=7860, help="Gradio server port (default: 7860)")
+    parser.add_argument("--port", type=int, default=8585, help="Gradio server port (default: 8585)")
     parser.add_argument("--enable-api", action="store_true", help="Enable REST API endpoint")
-    parser.add_argument("--api-port", type=int, default=8000, help="API server port (default: 8000)")
     args = parser.parse_args()
 
     # 1. Cleanup
@@ -250,16 +325,9 @@ if __name__ == "__main__":
         except ImportError:
             pass
     
-    # 3. Start API Server (Background)
+    # 3. API route mode
     server_name = "0.0.0.0" if args.server else "127.0.0.1"
-    
-    if args.enable_api or args.server:
-        api_thread = threading.Thread(
-            target=run_api_server,
-            args=(server_name, args.api_port),
-            daemon=True
-        )
-        api_thread.start()
+    api_enabled = bool(args.enable_api or args.server)
 
     # 4. Launch Gradio
     # Collect all existing drive roots (Windows) or root (Linux) as allowed paths
@@ -279,12 +347,34 @@ if __name__ == "__main__":
 
     ui, theme_js = create_ui(startup_message=startup_msg, is_server_mode=args.server)
     
-    print(f"Launching GUI on {server_name}:{args.port}")
-    ui.launch(
-        server_name=server_name,
-        server_port=args.port,
-        css=CSS, 
-        js=theme_js,
-        allowed_paths=allowed_paths,
-        prevent_thread_lock=False # Run blocking main thread
+    gui_network_url = f"http://{server_name}:{args.port}"
+    client_host = _canonical_client_host(server_name)
+    client_base_url = f"http://{client_host}:{args.port}"
+    _print_group(
+        "GUI Server",
+        [
+            f"Bind URL: {gui_network_url}",
+            f"Client Base URL: {client_base_url}",
+        ],
     )
+    if api_enabled:
+        _print_group(
+            "API Server",
+            [
+                f"Base URL: {client_base_url}",
+                f"{client_base_url}/api/health",
+                f"{client_base_url}/api/models",
+                f"{client_base_url}/api/caption",
+            ],
+        )
+        unified_app = build_unified_app(ui)
+        uvicorn.run(unified_app, host=server_name, port=args.port, log_level="warning")
+    else:
+        ui.launch(
+            server_name=server_name,
+            server_port=args.port,
+            css=CSS,
+            js=theme_js,
+            allowed_paths=allowed_paths,
+            prevent_thread_lock=False # Run blocking main thread
+        )

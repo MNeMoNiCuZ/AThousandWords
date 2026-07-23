@@ -213,6 +213,7 @@ class Florence2LanguageConfig(PretrainedConfig):
         is_encoder_decoder=True,
         decoder_start_token_id=2,
         forced_eos_token_id=2,
+        forced_bos_token_id=None,
         **kwargs,
     ):
         self.vocab_size = vocab_size
@@ -244,11 +245,12 @@ class Florence2LanguageConfig(PretrainedConfig):
             is_encoder_decoder=is_encoder_decoder,
             decoder_start_token_id=decoder_start_token_id,
             forced_eos_token_id=forced_eos_token_id,
+            forced_bos_token_id=forced_bos_token_id,
             **kwargs,
         )
 
         # ensure backward compatibility for BART CNN models
-        if self.forced_bos_token_id is None and kwargs.get("force_bos_token_to_be_generated", False):
+        if getattr(self, "forced_bos_token_id", None) is None and kwargs.get("force_bos_token_to_be_generated", False):
             self.forced_bos_token_id = self.bos_token_id
             warnings.warn(
                 f"Please make sure the config includes `forced_bos_token_id={self.bos_token_id}` in future versions. "
@@ -311,6 +313,10 @@ class Florence2Config(PretrainedConfig):
         self.text_config = text_config
         if text_config is not None:
             self.text_config = Florence2LanguageConfig(**text_config)
+            if not hasattr(self.text_config, "forced_bos_token_id"):
+                self.text_config.forced_bos_token_id = getattr(self.text_config, "bos_token_id", None)
+            if not hasattr(self.text_config, "forced_eos_token_id"):
+                self.text_config.forced_eos_token_id = getattr(self.text_config, "eos_token_id", None)
 
 
         super().__init__(**kwargs)

@@ -32,6 +32,94 @@ class MiaoshouAIWrapper(BaseCaptionModel):
         super().__init__(config)
         self.processor = None
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
+
+    @staticmethod
+    def _install_transformers_flash_shim() -> None:
+        import transformers.utils as transformers_utils
+        try:
+            import transformers.utils.import_utils as transformers_import_utils
+        except Exception:
+            transformers_import_utils = None
+        if not hasattr(transformers_utils, "is_flash_attn_greater_or_equal_2_10"):
+            def _is_flash_attn_greater_or_equal_2_10():
+                return False
+            setattr(transformers_utils, "is_flash_attn_greater_or_equal_2_10", _is_flash_attn_greater_or_equal_2_10)
+        names = getattr(transformers_utils, "__all__", None)
+        if isinstance(names, list) and "is_flash_attn_greater_or_equal_2_10" not in names:
+            names.append("is_flash_attn_greater_or_equal_2_10")
+        if transformers_import_utils is not None and not hasattr(transformers_import_utils, "is_flash_attn_greater_or_equal_2_10"):
+            setattr(
+                transformers_import_utils,
+                "is_flash_attn_greater_or_equal_2_10",
+                getattr(transformers_utils, "is_flash_attn_greater_or_equal_2_10"),
+            )
+
+    @staticmethod
+    def _install_tokenizer_compat_shim() -> None:
+        from transformers.tokenization_utils_base import PreTrainedTokenizerBase
+        if getattr(PreTrainedTokenizerBase, "_ai_launcher_additional_special_tokens_patch", False):
+            return
+        original_getattr = PreTrainedTokenizerBase.__getattr__
+        def _patched_getattr(self, key):
+            if key == "additional_special_tokens":
+                value = object.__getattribute__(self, "__dict__").get("additional_special_tokens", None)
+                if isinstance(value, list):
+                    return value
+                special_map = object.__getattribute__(self, "__dict__").get("special_tokens_map", {})
+                if isinstance(special_map, dict):
+                    mapped = special_map.get("additional_special_tokens")
+                    if isinstance(mapped, list):
+                        self.additional_special_tokens = list(mapped)
+                        return self.additional_special_tokens
+                self.additional_special_tokens = []
+                return self.additional_special_tokens
+            return original_getattr(self, key)
+        PreTrainedTokenizerBase.__getattr__ = _patched_getattr
+        PreTrainedTokenizerBase._ai_launcher_additional_special_tokens_patch = True
+
+    @staticmethod
+    def _install_tied_weights_compat_shim() -> None:
+        from transformers.modeling_utils import PreTrainedModel
+        if getattr(PreTrainedModel, "_ai_launcher_tied_weights_mapping_patch", False):
+            return
+        original = PreTrainedModel.get_expanded_tied_weights_keys
+        def _as_mapping(value):
+            if isinstance(value, dict):
+                return {str(k): str(v) for k, v in value.items() if str(k)}
+            if isinstance(value, (list, tuple, set)):
+                return {str(k): str(k) for k in list(value) if str(k)}
+            return {}
+        def _patched(self, *args, **kwargs):
+            tied = getattr(self, "all_tied_weights_keys", None)
+            mapped = _as_mapping(tied)
+            if mapped:
+                self.all_tied_weights_keys = mapped
+            private_tied = getattr(self, "_tied_weights_keys", None)
+            private_mapped = _as_mapping(private_tied)
+            if private_mapped:
+                self._tied_weights_keys = private_mapped
+            try:
+                return original(self, *args, **kwargs)
+            except AttributeError as exc:
+                if "keys" not in str(exc):
+                    raise
+                fallback = _as_mapping(getattr(self, "_tied_weights_keys", None)) or _as_mapping(getattr(self, "all_tied_weights_keys", None))
+                out = []
+                for k, v in fallback.items():
+                    if str(k):
+                        out.append(str(k))
+                    if str(v):
+                        out.append(str(v))
+                seen = set()
+                ordered = []
+                for key in out:
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                    ordered.append(key)
+                return ordered
+        PreTrainedModel.get_expanded_tied_weights_keys = _patched
+        PreTrainedModel._ai_launcher_tied_weights_mapping_patch = True
     
     def _load_model(self):
         """Load MiaoshouAI model and processor with flash_attn patch."""
@@ -45,6 +133,23 @@ class MiaoshouAIWrapper(BaseCaptionModel):
         import transformers
         from transformers import AutoModelForCausalLM, AutoProcessor
         from transformers.dynamic_module_utils import get_imports
+        from transformers.configuration_utils import PretrainedConfig
+        self._install_transformers_flash_shim()
+        self._install_tokenizer_compat_shim()
+        self._install_tied_weights_compat_shim()
+
+        if not getattr(PretrainedConfig, "_ai_launcher_forced_token_fallback_patch", False):
+            original_getattribute = PretrainedConfig.__getattribute__
+            def _patched_getattribute(self, name):
+                if name in {"forced_bos_token_id", "forced_eos_token_id"}:
+                    try:
+                        return original_getattribute(self, name)
+                    except AttributeError:
+                        object.__setattr__(self, name, None)
+                        return None
+                return original_getattribute(self, name)
+            PretrainedConfig.__getattribute__ = _patched_getattribute
+            PretrainedConfig._ai_launcher_forced_token_fallback_patch = True
         
         def fixed_get_imports(filename):
             """Remove flash_attn import for compatibility."""
@@ -56,6 +161,15 @@ class MiaoshouAIWrapper(BaseCaptionModel):
             except ValueError:
                 pass
             return imports
+
+        original_linspace = torch.linspace
+        def _safe_linspace(*args, **kwargs):
+            out = original_linspace(*args, **kwargs)
+            if getattr(getattr(out, "device", None), "type", "") != "meta":
+                return out
+            retry_kwargs = dict(kwargs)
+            retry_kwargs["device"] = "cpu"
+            return original_linspace(*args, **retry_kwargs)
         
         print(f"Loading MiaoshouAI model: {self.MODEL_ID}...")
         print(f"  Transformers version: {transformers.__version__}")
@@ -66,40 +180,76 @@ class MiaoshouAIWrapper(BaseCaptionModel):
         attention = 'eager' if use_eager else 'sdpa'
         print(f"  Using attention: {attention}")
         
-        if transformers.__version__ >= '4.51.0':
-            # For transformers >= 4.51.0, use local model files that properly inherit GenerationMixin
-            from .miaoshouai_florence2 import Florence2ForConditionalGeneration
-            from transformers import AutoProcessor
-            print("  Using local Florence2ForConditionalGeneration (GenerationMixin fix)")
-            
-            self.model = Florence2ForConditionalGeneration.from_pretrained(
-                self.MODEL_ID,
-                dtype=torch.bfloat16,
-                attn_implementation=attention
-            ).to(self.device)
-            
-            # CRITICAL: Must also load the processor
-            self.processor = AutoProcessor.from_pretrained(
-                self.MODEL_ID,
-                trust_remote_code=True
-            )
-        else:
-            # For older transformers, use the standard AutoModelForCausalLM
-            # Use config model_id
-            model_id = self.config.get('model_id', self.MODEL_ID)
-            
-            with patch("transformers.dynamic_module_utils.get_imports", fixed_get_imports):
-                self.model = AutoModelForCausalLM.from_pretrained(
-                    model_id,
-                    trust_remote_code=True,
-                    dtype=torch.float16 if self.device != "cpu" else torch.float32,  # Use float16 for GPU
-                    attn_implementation=attention
-                ).to(self.device).eval()
-                
-                self.processor = AutoProcessor.from_pretrained(
-                    model_id,
-                    trust_remote_code=True
-                )
+        def _load_with_auto_model(model_id: str):
+            with patch("transformers.dynamic_module_utils.get_imports", fixed_get_imports), patch("torch.linspace", _safe_linspace):
+                with torch.device("cpu"):
+                    model = AutoModelForCausalLM.from_pretrained(
+                        model_id,
+                        trust_remote_code=True,
+                        torch_dtype=torch.float16 if self.device != "cpu" else torch.float32,
+                        attn_implementation=attention,
+                        low_cpu_mem_usage=False,
+                        device_map=None,
+                        _fast_init=False,
+                    ).to(self.device).eval()
+                processor = AutoProcessor.from_pretrained(model_id, trust_remote_code=True)
+            return model, processor
+
+        model_id = self.config.get('model_id', self.MODEL_ID)
+        restored_default_device = None
+        if hasattr(torch, "get_default_device") and hasattr(torch, "set_default_device"):
+            try:
+                restored_default_device = torch.get_default_device()
+                torch.set_default_device("cpu")
+            except Exception:
+                restored_default_device = None
+        try:
+            if transformers.__version__ >= '4.51.0':
+                # For transformers >= 4.51.0, try local model files first.
+                from .miaoshouai_florence2 import Florence2ForConditionalGeneration
+                from .miaoshouai_florence2.modeling_florence2 import Florence2LanguageForConditionalGeneration
+                from transformers import AutoProcessor
+                print("  Using local Florence2ForConditionalGeneration (GenerationMixin fix)")
+                Florence2LanguageForConditionalGeneration._tied_weights_keys = [
+                    "model.encoder.embed_tokens.weight",
+                    "model.decoder.embed_tokens.weight",
+                    "lm_head.weight",
+                ]
+                Florence2ForConditionalGeneration._tied_weights_keys = [
+                    "language_model.model.encoder.embed_tokens.weight",
+                    "language_model.model.decoder.embed_tokens.weight",
+                    "language_model.lm_head.weight",
+                ]
+                try:
+                    with patch("torch.linspace", _safe_linspace):
+                        with torch.device("cpu"):
+                            self.model = Florence2ForConditionalGeneration.from_pretrained(
+                                self.MODEL_ID,
+                                torch_dtype=torch.bfloat16,
+                                attn_implementation=attention,
+                                low_cpu_mem_usage=False,
+                                device_map=None,
+                                _fast_init=False,
+                            ).to(self.device).eval()
+                    self.processor = AutoProcessor.from_pretrained(self.MODEL_ID, trust_remote_code=True)
+                except RuntimeError as exc:
+                    if "meta tensors" not in str(exc):
+                        raise
+                    print("  Local Florence2 load hit meta tensor path, retrying with AutoModel fallback...")
+                    self.model, self.processor = _load_with_auto_model(model_id)
+            else:
+                self.model, self.processor = _load_with_auto_model(model_id)
+        finally:
+            if restored_default_device is not None and hasattr(torch, "set_default_device"):
+                try:
+                    torch.set_default_device(restored_default_device)
+                except Exception:
+                    pass
+        text_cfg = getattr(getattr(self.model, "config", None), "text_config", None)
+        if text_cfg is not None and not hasattr(text_cfg, "forced_bos_token_id"):
+            text_cfg.forced_bos_token_id = getattr(text_cfg, "bos_token_id", None)
+        if text_cfg is not None and not hasattr(text_cfg, "forced_eos_token_id"):
+            text_cfg.forced_eos_token_id = getattr(text_cfg, "eos_token_id", None)
         
         if torch.cuda.is_available():
             print(f"  GPU detected: {torch.cuda.get_device_name(0)}")

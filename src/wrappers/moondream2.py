@@ -10,9 +10,8 @@ Features:
 """
 
 from .base import BaseCaptionModel
-from typing import List, Dict, Any, Union
+from typing import List, Dict, Any
 from PIL import Image
-from pathlib import Path
 import torch
 
 
@@ -32,6 +31,27 @@ class Moondream2Wrapper(BaseCaptionModel):
     def __init__(self, config):
         super().__init__(config)
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
+
+    @staticmethod
+    def _is_low_quality_caption(text: str) -> bool:
+        content = str(text or "").strip()
+        if len(content) < 8:
+            return True
+        tokens = [tok.strip(".,:;!?()[]{}\"'").lower() for tok in content.split() if tok.strip()]
+        if not tokens:
+            return True
+        unique_tokens = set(tokens)
+        if len(unique_tokens) <= max(3, int(len(tokens) * 0.2)):
+            return True
+        longest_repeat = 1
+        repeat = 1
+        for idx in range(1, len(tokens)):
+            if tokens[idx] == tokens[idx - 1]:
+                repeat += 1
+                longest_repeat = max(longest_repeat, repeat)
+            else:
+                repeat = 1
+        return longest_repeat >= 6
     
     def _load_model(self):
         """Load Moondream2 model."""
@@ -39,6 +59,12 @@ class Moondream2Wrapper(BaseCaptionModel):
             return
         
         from transformers import AutoModelForCausalLM, AutoTokenizer
+
+        # Moondream's custom modeling code doesn't set `all_tied_weights_keys`,
+        # which newer transformers reads during from_pretrained. Install a
+        # read/write compatibility property that doesn't break other models.
+        from src.core.model_utils import ensure_all_tied_weights_keys_compat
+        ensure_all_tied_weights_keys_compat()
         
         self._print_item("Loading", f"{self.MODEL_ID} (revision: {self.MODEL_REVISION})")
         
@@ -46,8 +72,7 @@ class Moondream2Wrapper(BaseCaptionModel):
             self.MODEL_ID,
             revision=self.MODEL_REVISION,
             trust_remote_code=True,
-            device_map={"": self.device}
-        )
+        ).to(self.device)
         self.tokenizer = AutoTokenizer.from_pretrained(
             self.MODEL_ID,
             revision=self.MODEL_REVISION
@@ -71,6 +96,9 @@ class Moondream2Wrapper(BaseCaptionModel):
             List of captions/answers
         """
         model_mode = args.get('model_mode', 'Caption')
+        caption_length = str(args.get('caption_length', 'normal')).strip().lower() or "normal"
+        if caption_length not in {"short", "normal", "long"}:
+            caption_length = "normal"
         max_tokens = args.get('max_tokens', 512)
         
         # Verify mode (default to Caption if invalid)
@@ -82,19 +110,30 @@ class Moondream2Wrapper(BaseCaptionModel):
         results = []
         
         for image, p in zip(images, prompt):
-            # Prepare image embeddings
-            enc_image = self.model.encode_image(image)
-            
             if model_mode == "Query" and p:
+                enc_image = self.model.encode_image(image)
                 # Query mode - answer the question
                 answer = self.model.answer_question(enc_image, p, self.tokenizer, max_new_tokens=int(max_tokens))
                 results.append(answer)
             else:
-                # Caption mode - generate description
-                # Note: Moondream2 uses answer_question for captioning too, typically with empty prompt or specific instructions
-                # But here we pass the prompt as is (usually contains instruction)
-                answer = self.model.answer_question(enc_image, p, self.tokenizer, max_new_tokens=int(max_tokens))
-                results.append(answer)
+                caption_text = ""
+                if hasattr(self.model, "caption"):
+                    try:
+                        out = self.model.caption(image=image, length=caption_length)
+                        caption_text = str((out or {}).get("caption") if isinstance(out, dict) else out or "").strip()
+                    except Exception:
+                        caption_text = ""
+                if not caption_text:
+                    enc_image = self.model.encode_image(image)
+                    fallback_prompt = p if p else "Describe the image in one clear sentence."
+                    caption_text = str(self.model.answer_question(enc_image, fallback_prompt, self.tokenizer, max_new_tokens=min(int(max_tokens), 160)) or "").strip()
+                if self._is_low_quality_caption(caption_text):
+                    enc_image = self.model.encode_image(image)
+                    retry_prompt = "Describe the image clearly with key objects, setting, and mood."
+                    retry_text = str(self.model.answer_question(enc_image, retry_prompt, self.tokenizer, max_new_tokens=160) or "").strip()
+                    if retry_text and not self._is_low_quality_caption(retry_text):
+                        caption_text = retry_text
+                results.append(caption_text)
         
         return results
     

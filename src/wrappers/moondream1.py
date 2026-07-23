@@ -51,6 +51,8 @@ class Moondream1Wrapper(BaseCaptionModel):
             from transformers import CodeGenTokenizerFast
         except ImportError as e:
              raise ImportError(f"Could not import generic Moondream1 classes. Ensure files are in src/wrappers/moondream1_lib/: {e}")
+        if not hasattr(Moondream, "all_tied_weights_keys"):
+            setattr(Moondream, "all_tied_weights_keys", {})
 
         self._print_item("Loading", self.MODEL_ID)
         

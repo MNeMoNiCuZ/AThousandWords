@@ -44,6 +44,27 @@ class Moondream3Wrapper(BaseCaptionModel):
         super().__init__(config)
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self._compiled = False
+
+    @staticmethod
+    def _is_low_quality_caption(text: str) -> bool:
+        content = str(text or "").strip()
+        if len(content) < 8:
+            return True
+        tokens = [tok.strip(".,:;!?()[]{}\"'").lower() for tok in content.split() if tok.strip()]
+        if not tokens:
+            return True
+        unique_tokens = set(tokens)
+        if len(unique_tokens) <= max(3, int(len(tokens) * 0.2)):
+            return True
+        longest_repeat = 1
+        repeat = 1
+        for idx in range(1, len(tokens)):
+            if tokens[idx] == tokens[idx - 1]:
+                repeat += 1
+                longest_repeat = max(longest_repeat, repeat)
+            else:
+                repeat = 1
+        return longest_repeat >= 6
     
     def _load_model(self):
         """Load and compile Moondream3 model."""
@@ -55,6 +76,11 @@ class Moondream3Wrapper(BaseCaptionModel):
         
         logging.getLogger("huggingface_hub.file_download").setLevel(logging.ERROR)
         os.environ["HF_HUB_DISABLE_XET"] = "1"
+        # Moondream's custom modeling code doesn't set `all_tied_weights_keys`,
+        # which newer transformers reads during from_pretrained. Install a
+        # read/write compatibility property that doesn't break other models.
+        from src.core.model_utils import ensure_all_tied_weights_keys_compat
+        ensure_all_tied_weights_keys_compat()
         
         from .moondream3_lib.hf_moondream import HfMoondream as MoondreamForCausalLM
         
@@ -63,8 +89,7 @@ class Moondream3Wrapper(BaseCaptionModel):
         self.model = MoondreamForCausalLM.from_pretrained(
             self.MODEL_ID,
             dtype=torch.bfloat16,
-            device_map={"": self.device}
-        )
+        ).to(self.device)
         
         self._print_item("Status", f"Model loaded on {self.device}")
         
@@ -145,7 +170,7 @@ class Moondream3Wrapper(BaseCaptionModel):
                         detect_result = self.model.detect(image, p)
                         objects = detect_result.get("objects", [])
                         result_text = json.dumps({
-                            "target": prompt,
+                            "target": p,
                             "objects": objects,
                             "count": len(objects)
                         }, indent=2)
@@ -171,12 +196,37 @@ class Moondream3Wrapper(BaseCaptionModel):
             else:
                 # Caption mode (default): Generate image description
                 # Note: Reasoning is currently not exposed for pure caption mode in GUI
+                caption_settings = {
+                    "temperature": min(float(temperature), 0.25),
+                    "max_tokens": min(int(max_tokens), 160),
+                }
                 result = self.model.caption(
                     image, 
                     length=caption_length,
-                    settings=settings
+                    settings=caption_settings
                 )
-                result_text = result.get("caption", "")
+                result_text = str(result.get("caption", "")).strip()
+                if self._is_low_quality_caption(result_text):
+                    try:
+                        retry = self.model.query(
+                            image=image,
+                            question="Describe the image in one detailed sentence with subject, setting, and notable objects.",
+                            reasoning=False,
+                            settings=caption_settings,
+                        )
+                        retry_text = str((retry or {}).get("answer") or "").strip()
+                        if self._is_low_quality_caption(retry_text):
+                            retry = self.model.query(
+                                image=image,
+                                question="What is happening in this image? Answer in one clean sentence.",
+                                reasoning=False,
+                                settings=caption_settings,
+                            )
+                            retry_text = str((retry or {}).get("answer") or "").strip()
+                        if retry_text and not self._is_low_quality_caption(retry_text):
+                            result_text = retry_text
+                    except Exception:
+                        pass
             
             results.append(result_text)
         

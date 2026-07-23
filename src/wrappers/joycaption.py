@@ -102,8 +102,12 @@ class JoyCaptionWrapper(BaseCaptionModel):
         # Try to apply liger_kernel optimization (optional)
         try:
             from liger_kernel.transformers import apply_liger_kernel_to_llama
-            apply_liger_kernel_to_llama(model=self.model.language_model)
-            self._print_item("Optimization", "Liger kernel applied")
+            target_language_model = getattr(self.model, "language_model", None)
+            if target_language_model is None:
+                target_language_model = getattr(getattr(self.model, "model", None), "language_model", None)
+            if target_language_model is not None:
+                apply_liger_kernel_to_llama(model=target_language_model)
+                self._print_item("Optimization", "Liger kernel applied")
         except ImportError:
             pass
         
@@ -231,10 +235,34 @@ class JoyCaptionWrapper(BaseCaptionModel):
         # Since I am replacing the top block, I need to make sure the code flow works.
         # Actually, if I return in the Slow Path, the rest is the Fast Path.
         
-        # Get device info
-        vision_dtype = self.model.vision_tower.vision_model.embeddings.patch_embedding.weight.dtype
-        vision_device = self.model.vision_tower.vision_model.embeddings.patch_embedding.weight.device
-        language_device = self.model.language_model.get_input_embeddings().weight.device
+        # Resolve language tower paths across Llava variants
+        language_model = getattr(self.model, "language_model", None)
+        if language_model is None:
+            language_model = getattr(getattr(self.model, "model", None), "language_model", None)
+        if language_model is None:
+            language_model = getattr(self.model, "model", None)
+        input_embeddings = None
+        if language_model is not None and hasattr(language_model, "get_input_embeddings"):
+            input_embeddings = language_model.get_input_embeddings()
+        if input_embeddings is None and hasattr(self.model, "get_input_embeddings"):
+            input_embeddings = self.model.get_input_embeddings()
+        language_device = getattr(getattr(input_embeddings, "weight", None), "device", torch.device(self.device))
+
+        # Resolve vision tower paths across Llava variants
+        vision_tower = getattr(self.model, "vision_tower", None)
+        if vision_tower is None:
+            vision_tower = getattr(getattr(self.model, "model", None), "vision_tower", None)
+        if vision_tower is None and hasattr(self.model, "get_vision_tower"):
+            try:
+                vision_tower = self.model.get_vision_tower()
+            except Exception:
+                vision_tower = None
+        patch_embedding = getattr(getattr(getattr(vision_tower, "vision_model", vision_tower), "embeddings", None), "patch_embedding", None)
+        patch_weight = getattr(patch_embedding, "weight", None)
+        vision_dtype = getattr(patch_weight, "dtype", torch.bfloat16)
+        vision_device = getattr(patch_weight, "device", None)
+        if vision_device is None:
+            vision_device = language_device
         
         # Move to devices
         pixel_values_batch = pixel_values_batch.to(vision_device, non_blocking=True)

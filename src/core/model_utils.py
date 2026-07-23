@@ -17,6 +17,60 @@ class UnloadMode(Enum):
     ONNX = "onnx"             # For ONNX Runtime models
 
 
+# Instance-dict key used by the tied-weights compatibility property below.
+_ALL_TIED_WEIGHTS_KEYS_ATTR = "_all_tied_weights_keys_value"
+
+
+def ensure_all_tied_weights_keys_compat() -> None:
+    """Make `PreTrainedModel.all_tied_weights_keys` safe for custom modeling code.
+
+    Some custom/remote model classes (e.g. Moondream's ``HfMoondream``) never set
+    ``all_tied_weights_keys``, yet newer transformers (>=5.x) reads it during
+    ``from_pretrained`` (``mark_tied_weights_as_initialized``) and crashes with
+    ``'... object has no attribute 'all_tied_weights_keys'``.
+
+    A naive shim that adds a *read-only* ``property`` to the shared
+    ``PreTrainedModel`` base fixes those custom models but then breaks every
+    standard model, because transformers' ``post_init`` does
+    ``self.all_tied_weights_keys = ...`` and a read-only property raises
+    ``property ... object has no setter``.
+
+    The fix is a read/write property installed on the base class: standard models
+    assign through the setter as usual, while custom models that never assign fall
+    back to a value derived from ``_tied_weights_keys``. This is idempotent and
+    also repairs a previously-installed read-only property within the process.
+    """
+    try:
+        from transformers.modeling_utils import PreTrainedModel
+    except Exception:
+        return
+
+    existing = PreTrainedModel.__dict__.get("all_tied_weights_keys")
+    if isinstance(existing, property) and existing.fset is not None:
+        # A writable property (ours, or a compatible one) is already installed.
+        return
+
+    attr = _ALL_TIED_WEIGHTS_KEYS_ATTR
+
+    def _getter(self):
+        if attr in self.__dict__:
+            return self.__dict__[attr]
+        keys = getattr(self, "_tied_weights_keys", None)
+        if isinstance(keys, dict):
+            return keys
+        if isinstance(keys, (list, tuple, set)):
+            return {str(k): str(k) for k in keys}
+        return {}
+
+    def _setter(self, value):
+        self.__dict__[attr] = value
+
+    def _deleter(self):
+        self.__dict__.pop(attr, None)
+
+    PreTrainedModel.all_tied_weights_keys = property(_getter, _setter, _deleter)
+
+
 def unload_model(
     model: Any,
     processor: Any = None,

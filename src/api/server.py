@@ -47,7 +47,9 @@ async def log_requests(request: Request, call_next):
     start = time.time()
     response = await call_next(request)
     elapsed = time.time() - start
-    console.print(f"API {request.method} {request.url.path} -> {response.status_code} ({elapsed:.2f}s)", force=True)
+    path = str(request.url.path or "")
+    if path.startswith("/api/") or path in {"/health", "/models", "/caption"}:
+        console.print(f"API {request.method} {path} -> {response.status_code} ({elapsed:.2f}s)", force=True)
     return response
 
 # --- Utilities ---
@@ -63,17 +65,22 @@ def cleanup_job_dir(job_dir: Path):
 # --- Endpoints ---
 
 @app.get("/api/health")
+@app.get("/health")
 async def health_check():
+    console.print("API handshake: GET /api/health", force=True)
     return {"status": "ok"}
 
 @app.get("/api/models")
+@app.get("/models")
 async def list_models():
     """List available model IDs."""
     config_mgr = ConfigManager()
     models = config_mgr.list_models()
+    console.print(f"API handshake: GET /api/models -> {len(models)} model(s): {models}", force=True)
     return {"models": models}
 
 @app.post("/api/caption")
+@app.post("/caption")
 async def caption_images(
     background_tasks: BackgroundTasks,
     files: List[UploadFile] = File(...),
@@ -117,7 +124,7 @@ async def caption_images(
                 shutil.copyfileobj(file.file, buffer)
             saved_files.append(file_path)
             
-        console.print(f"API Job {job_id[:8]}: Received {len(saved_files)} file(s), Model: {model}", force=True)
+        console.print(f"API handshake: POST /api/caption job={job_id[:8]} files={len(saved_files)} model={model}", force=True)
         
         # 2. Validate Model
         config_mgr = ConfigManager()
@@ -217,6 +224,7 @@ async def caption_images(
                 "caption": content
             })
 
+        console.print(f"API Job {job_id[:8]}: Completed with {len(results)} result item(s)", force=True)
         return {"status": "success", "results": results}
         
     except Exception as e:

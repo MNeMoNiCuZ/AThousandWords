@@ -33,10 +33,6 @@ pause >nul
 
 echo.
 echo Launching A Thousand Words GUI...
-echo Usage: gui.bat [options]
-echo   --server       : Enable network access (0.0.0.0)
-echo   --enable-api   : Enable REST API endpoint
-echo.
 
 python gui.py %*
 
