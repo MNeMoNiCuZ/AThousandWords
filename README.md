@@ -70,6 +70,7 @@ A powerful, customizable, and user-friendly batch captioning tool for VLM (Visio
    > pip install git+https://github.com/huggingface/transformers.git
    > uv pip install -r requirements.txt
    > ```
+   > **⚠️ Moondream compatibility**: The Moondream models (Moondream 2 and Moondream 3) require `transformers <= 4.56.1` and are **not** compatible with transformers 5.x. On 5.x they load without error but produce garbage/empty captions. Because the newer Qwen3.5 models require transformers 5.x, the two families cannot be used from the same environment — pin `transformers==4.56.1` if you need Moondream, or use a separate environment for it.
 
 6. **Launch the Application**:
    ```bash

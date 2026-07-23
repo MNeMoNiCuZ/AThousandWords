@@ -5,7 +5,7 @@ wrapper_path: "src.wrappers.moondream3.Moondream3Wrapper"
 tags: false
 natural_language: true
 model_path: "moondream/moondream3-preview"
-description: "Advanced model with chain-of-thought reasoning. <b>Batch size has no effect</b><br>Query Mode: Prompt-guided mode, can also answer input questions.<br>Caption Mode: Preset captioning with length options, not promptable.<br>Detect Mode: Returns bounding boxes of found objects.<br>Point Mode: Returns a list of coordinates with found object."
+description: "Advanced model with chain-of-thought reasoning. <b>Batch size has no effect</b><br>Query Mode: Prompt-guided mode, can also answer input questions.<br>Caption Mode: Preset captioning with length options, not promptable.<br>Detect Mode: Returns bounding boxes of found objects.<br>Point Mode: Returns a list of coordinates with found object.<br><br><span style=\"color: red;\">Requires transformers &lt;= 4.56.1. On transformers 5.x (needed for Qwen3.5 models) Moondream loads but produces garbage output.</span>"
 caption_speed: 0.16
 media_type:
   - "Image"
