@@ -98,6 +98,50 @@ A powerful, customizable, and user-friendly batch captioning tool for VLM (Visio
 
 ---
 
+## Docker (Compose)
+
+Prefer containers? A `Dockerfile` and `docker-compose.yml` are included. This builds a CUDA 12.8 image (compiling Flash Attention from source) and serves the GUI + REST API together on port **8585**.
+
+### Requirements
+- **Docker** with the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html) (GPU passthrough).
+- An NVIDIA GPU with recent drivers. On Windows, use Docker Desktop with the WSL2 backend.
+
+### Quick Start
+```bash
+docker compose up --build
+```
+Then open http://localhost:8585 in your browser.
+
+> **⚠️ First build is slow.** Compiling Flash Attention takes 20–40+ minutes. This layer is cached, so subsequent builds are fast unless the base image or PyTorch version changes.
+
+### Volumes & Models
+The compose file bind-mounts these host folders into the container, so they persist and are **not** baked into the image:
+
+| Host path | Container path | Purpose |
+| :--- | :--- | :--- |
+| `./models` | `/app/models` | Hugging Face cache/models (`HF_HOME`) — downloaded on first use |
+| `./user` | `/app/user` | User config and uploads |
+| `./input` | `/app/input` | Input images |
+| `./src`, `./gui.py`, `./captioner.py` | (same) | Live code, so edits apply without a rebuild |
+
+Models download into `./models` on first run and are reused afterward.
+
+### Hugging Face Token (optional)
+Gated models (and higher download rate limits) need an HF token. Copy `.env.example` to `.env` next to the compose file and set it:
+```bash
+HF_TOKEN=hf_your_token_here
+```
+Left unset, the container runs unauthenticated.
+
+### Common Commands
+```bash
+docker compose up -d --build   # build and run in the background
+docker compose logs -f         # follow logs
+docker compose down            # stop and remove the container
+```
+
+---
+
 ## Features Overview
 
 ## Captioning

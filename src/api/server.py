@@ -70,14 +70,54 @@ async def health_check():
     console.print("API handshake: GET /api/health", force=True)
     return {"status": "ok"}
 
+def _batch_choices_for_vram(vram_gb: int) -> List[int]:
+    """Selectable batch sizes for a VRAM tier (mirrors BatchSizeFeature docstring)."""
+    if vram_gb >= 24:
+        return [1, 2, 4, 8]
+    elif vram_gb >= 16:
+        return [1, 2, 4]
+    elif vram_gb >= 12:
+        return [1, 2]
+    else:
+        return [1]
+
 @app.get("/api/models")
 @app.get("/models")
 async def list_models():
-    """List available model IDs."""
+    """List available model IDs plus per-model batch-size info for building UI controls."""
     config_mgr = ConfigManager()
     models = config_mgr.list_models()
-    console.print(f"API handshake: GET /api/models -> {len(models)} model(s): {models}", force=True)
-    return {"models": models}
+
+    gpu_vram = int(config_mgr.get_global_settings().get('gpu_vram', 24))
+
+    # Recommendation logic lives in the batch_size feature; reuse it.
+    batch_feature = feature_registry.get_all_features().get('batch_size')
+    recommended = batch_feature.get_recommended_batch_size(gpu_vram) if batch_feature else 1
+    choices = _batch_choices_for_vram(gpu_vram)
+
+    batch_sizes: Dict[str, Any] = {}
+    for model_id in models:
+        # Per-model configured default (falls back to the feature default of 1).
+        model_config = config_mgr.get_model_config(model_id)
+        raw_defaults = model_config.get('defaults', {})
+        version = raw_defaults.get('model_version') if isinstance(raw_defaults, dict) else None
+        model_defaults = config_mgr.get_version_defaults(model_id, version)
+        model_default = model_defaults.get('batch_size', batch_feature.config.default_value if batch_feature else 1)
+
+        batch_sizes[model_id] = {
+            "default": model_default,      # configured default for this model
+            "recommended": recommended,    # best pick for current VRAM
+            "choices": choices,            # dropdown options for current VRAM
+            "min": 1,
+            "max": None,                   # no hard cap; override field is free-form
+        }
+
+    console.print(f"API handshake: GET /api/models -> {len(models)} model(s) (gpu_vram={gpu_vram}GB)", force=True)
+    return {
+        "models": models,
+        "gpu_vram": gpu_vram,
+        "batch_sizes": batch_sizes,
+    }
 
 @app.post("/api/caption")
 @app.post("/caption")
@@ -176,6 +216,14 @@ async def caption_images(
         args["gpu_vram"] = config_mgr.user_config.get('gpu_vram', 24)
         args["overwrite"] = True
         args["print_console"] = True
+
+        # If the caller didn't explicitly request a batch_size, fall back to the
+        # VRAM-appropriate recommendation instead of the flat feature default of 1.
+        # (Agents omit batch_size; the admin frontend sends an explicit value.)
+        if batch_size is None:
+            batch_feature = all_features.get('batch_size')
+            if batch_feature:
+                args["batch_size"] = batch_feature.get_recommended_batch_size(int(args["gpu_vram"]))
         
         # 4. Load Dataset
         dataset = DataLoader.scan_directory(str(input_dir))

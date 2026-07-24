@@ -3,18 +3,21 @@ services:
     build: .
     image: athousandwords:latest
     ports:
-      - "7860:7860"  # Gradio GUI
-      - "8000:8000"  # API (optional)
+      - "8585:8585"  # Unified Gradio GUI + REST API
     volumes:
       - ./user:/app/user  # Persist user config and uploads
       - ./input:/app/input  # Mount input directory
-     #- ./models:/app/models # Persist Hugging Face cache/models
+      - ./models:/app/models # Persist Hugging Face cache/models
       - ./src:/app/src
       - ./gui.py:/app/gui.py
       - ./captioner.py:/app/captioner.py
     environment:
-      - GRADIO_SERVER_NAME=0.0.0.0
       - HF_HOME=/app/models
+      # Optional: authenticates to the Hugging Face Hub (needed for gated
+      # models; also raises rate limits / download speed). Set HF_TOKEN in a
+      # .env file next to this compose file, or in your host environment.
+      # Left empty (unauthenticated) if unset.
+      - HF_TOKEN=${HF_TOKEN:-}
     deploy:
       resources:
         reservations:

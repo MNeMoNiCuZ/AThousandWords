@@ -48,5 +48,8 @@ num2words
 colorama
 
 # WD14 Tagger
-onnxruntime-gpu
+# Pinned: onnxruntime-gpu>=1.23 ships wheels linked against CUDA 13 libs
+# (libcudart.so.13), which aren't present in our CUDA 12.8 runtime image and
+# fail to import silently. Keep pinned to a CUDA 12.x compatible release.
+onnxruntime-gpu==1.22.0
 opencv-python-headless

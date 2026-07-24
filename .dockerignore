@@ -1,4 +1,8 @@
 venv/
+models/
+temp/
+video/
+output/
 __pycache__/
 *.pyc
 *.pyo

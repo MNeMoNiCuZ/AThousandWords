@@ -32,9 +32,10 @@ RUN pip install --no-cache-dir --upgrade pip wheel packaging psutil setuptools
 RUN pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128
 
 # Build Flash Attention Wheel
-# This can take 10+ minutes.
-# Limit parallel jobs to prevent OOM
-ENV MAX_JOBS=8
+# This can take 20-40+ minutes.
+# Each nvcc job can use ~8-10GB RAM; keep MAX_JOBS low to avoid OOM-killing
+# the (WSL2/Docker Desktop) builder. Raise only if the builder has plenty of RAM.
+ENV MAX_JOBS=4
 RUN pip wheel flash-attn --no-build-isolation --no-deps --wheel-dir /build/wheels
 
 # --- Final Runtime Stage ---
@@ -77,11 +78,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY . .
 
-# Expose ports
-EXPOSE 7860 8000
+# Expose the unified GUI + API port
+EXPOSE 8585
 
-# Set environment variables
-ENV GRADIO_SERVER_NAME="0.0.0.0"
-
-# Default command
-CMD ["python", "gui.py", "--server", "--enable-api"]
+# Default command: server mode (bind 0.0.0.0) with the REST API enabled,
+# GUI and API served together on port 8585.
+CMD ["python", "gui.py", "--server", "--enable-api", "--port", "8585"]
