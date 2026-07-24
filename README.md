@@ -100,7 +100,7 @@ A powerful, customizable, and user-friendly batch captioning tool for VLM (Visio
 
 ## Docker (Compose)
 
-Prefer containers? A `Dockerfile` and `docker-compose.yml` are included. This builds a CUDA 12.8 image (compiling Flash Attention from source) and serves the GUI + REST API together on port **8585**.
+Prefer containers? A `Dockerfile` and `docker-compose.yml` are included. This builds a CUDA 12.8 image (Flash Attention is installed from a prebuilt wheel, no compiling) and serves the GUI + REST API together on port **8585**.
 
 ### Requirements
 - **Docker** with the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html) (GPU passthrough).
@@ -112,7 +112,7 @@ docker compose up --build
 ```
 Then open http://localhost:8585 in your browser.
 
-> **⚠️ First build is slow.** Compiling Flash Attention takes 20–40+ minutes. This layer is cached, so subsequent builds are fast unless the base image or PyTorch version changes.
+> **Note:** The build downloads PyTorch and a prebuilt Flash Attention wheel (~a few GB total), so the first build takes a while on a slow connection. There's no source compilation, and layers are cached, so rebuilds are fast.
 
 ### Volumes & Models
 The compose file bind-mounts these host folders into the container, so they persist and are **not** baked into the image:
