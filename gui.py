@@ -79,7 +79,12 @@ except Exception:  # pragma: no cover - optional dependency
         return None
 
 
-colorama_init(autoreset=True)
+_launcher_console = os.environ.get("ATW_LAUNCHER_CONSOLE") == "1"
+colorama_init(
+    autoreset=True,
+    strip=False if _launcher_console else None,
+    convert=False if _launcher_console else None,
+)
 
 
 def _c(text, color):

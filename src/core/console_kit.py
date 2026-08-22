@@ -7,11 +7,17 @@ Allows printing in two modes:
 2. Minimal: Prints only critical information (start, stats, errors) via force=True.
 """
 
+import os
 import sys
 from colorama import Fore, Style, init
 
 # Initialize colorama
-init(autoreset=True)
+_launcher_console = os.environ.get("ATW_LAUNCHER_CONSOLE") == "1"
+init(
+    autoreset=True,
+    strip=False if _launcher_console else None,
+    convert=False if _launcher_console else None,
+)
 
 # Preserve the real terminal stdout before anything (Gradio, etc.) can redirect it
 _terminal_stdout = sys.__stdout__

@@ -217,4 +217,6 @@ venv_activate.bat
 /docs/GEMINI.md
 /temp
 /models
+/_internal
+/A Thousand Words.exe
 .claude*

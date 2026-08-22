@@ -13,7 +13,12 @@ from pathlib import Path
 # Colorama for colored console output
 try:
     from colorama import Fore, Style, init
-    init(autoreset=True)
+    _launcher_console = os.environ.get("ATW_LAUNCHER_CONSOLE") == "1"
+    init(
+        autoreset=True,
+        strip=False if _launcher_console else None,
+        convert=False if _launcher_console else None,
+    )
     HAS_COLORAMA = True
 except ImportError:
     HAS_COLORAMA = False

@@ -47,6 +47,11 @@ num2words
 # spaces # HuggingFace Spaces specific helper
 colorama
 
+# Server launcher
+PyQt6
+psutil
+pyinstaller
+
 # WD14 Tagger
 # Pinned: onnxruntime-gpu>=1.23 ships wheels linked against CUDA 13 libs
 # (libcudart.so.13), which aren't present in our CUDA 12.8 runtime image and
