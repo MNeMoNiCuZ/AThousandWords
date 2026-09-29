@@ -43,15 +43,15 @@ def get_session_log_path(repo_root: Path) -> Path:
 def get_icon_png_path(repo_root: Path) -> Path:
     """Return the source or bundled launcher PNG path."""
     bundled_root = Path(getattr(sys, "_MEIPASS", repo_root))
-    bundled = bundled_root / "src" / "launcher" / "assets" / "server_launcher.png"
+    bundled = bundled_root / "src" / "assets" / "server_launcher.png"
     if bundled.is_file():
         return bundled
-    return repo_root / "src" / "launcher" / "assets" / "server_launcher.png"
+    return repo_root / "src" / "assets" / "server_launcher.png"
 
 
 def get_icon_ico_path(repo_root: Path) -> Path:
     """Return the Windows executable icon path used during builds."""
-    return repo_root / "src" / "launcher" / "assets" / "server_launcher.ico"
+    return repo_root / "src" / "assets" / "server_launcher.ico"
 
 
 def get_lan_ip() -> str:

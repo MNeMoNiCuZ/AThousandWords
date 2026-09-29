@@ -192,7 +192,7 @@ def run_with_dynamic_state(app, build_args_fn, *args):
             visible=True,
             interactive=True,
             variant="primary",
-            icon=str(Path(__file__).parent.parent / "core" / "download_white.svg"),
+            icon=str(Path(__file__).parent.parent / "assets" / "download_white.svg"),
             elem_classes="download-btn"
         )
 
@@ -258,7 +258,7 @@ def tool_finish_processing(button_text: str, generated_files: list = None, zip_p
                 visible=True,
                 interactive=True,
                 variant="primary",
-                icon=str(Path(__file__).parent.parent / "core" / "download_white.svg"),
+                icon=str(Path(__file__).parent.parent / "assets" / "download_white.svg"),
                 elem_classes=["download-btn"]
             )
     

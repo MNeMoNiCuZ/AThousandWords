@@ -497,7 +497,7 @@ class AugmentTool(BaseTool):
             with gr.Column(visible=False, scale=0, min_width=80, elem_classes="download-btn-wrapper") as download_btn_group:
                 download_btn = gr.DownloadButton(
                     label="", 
-                    icon=str(Path(__file__).parent.parent / "core" / "download_white.svg"),
+                    icon=str(Path(__file__).parent.parent / "assets" / "download_white.svg"),
                     visible=True, variant="primary", scale=0, elem_classes="download-btn"
                 )
         

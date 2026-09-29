@@ -48,10 +48,10 @@ def build(keep_build: bool = False) -> int:
     target_exe = REPO_ROOT / f"{EXE_NAME}.exe"
     target_contents = REPO_ROOT / CONTENTS_DIR_NAME
     legacy_target_bundle = REPO_ROOT / "launcher"
-    icon_png = REPO_ROOT / "src" / "launcher" / "assets" / "server_launcher.png"
-    icon_ico = REPO_ROOT / "src" / "launcher" / "assets" / "server_launcher.ico"
+    icon_png = REPO_ROOT / "src" / "assets" / "server_launcher.png"
+    icon_ico = REPO_ROOT / "src" / "assets" / "server_launcher.ico"
     if not icon_png.is_file() or not icon_ico.is_file():
-        _emit("ERROR: Launcher PNG or ICO asset is missing from src\\launcher\\assets.")
+        _emit("ERROR: Launcher PNG or ICO asset is missing from src\\assets.")
         return 1
     if temp_root.exists():
         shutil.rmtree(temp_root)
@@ -73,7 +73,7 @@ def build(keep_build: bool = False) -> int:
         "--icon",
         str(icon_ico),
         "--add-data",
-        f"{icon_png};src\\launcher\\assets",
+        f"{icon_png};src\\assets",
         "--distpath",
         str(dist_root),
         "--workpath",
